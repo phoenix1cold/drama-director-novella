@@ -1,0 +1,65 @@
+{
+  "id": "drama-director-novella",
+  "title": "Drama Director — Novella",
+  "description": "Visual Novel system: characters, backgrounds, dialogue, emotion sets, GM bar, mic-driven mouth animation. Part of the Drama Director module family.",
+  "version": "1.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "phoenix1cold",
+      "url": "https://github.com/phoenix1cold"
+    }
+  ],
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "styles": [
+    "styles/vn.css"
+  ],
+  "socket": true,
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "ru",
+      "name": "Русский",
+      "path": "lang/ru.json"
+    },
+    {
+      "lang": "fr",
+      "name": "Français",
+      "path": "lang/fr.json"
+    },
+    {
+      "lang": "zh",
+      "name": "Chinese Simplified",
+      "path": "lang/zh.json"
+    }
+  ],
+  "templates": [
+    "templates/vn-panel.hbs"
+  ],
+  "relationships": {
+    "requires": [
+      {
+        "id": "drama-director-hub",
+        "type": "module",
+        "compatibility": {
+          "minimum": "1.0"
+        }
+      }
+    ]
+  },
+  "flags": {},
+  "url": "https://github.com/phoenix1cold/drama-director-novella",
+  "manifest": "https://github.com/phoenix1cold/drama-director-novella/releases/latest/download/module.json",
+  "download": "https://github.com/phoenix1cold/drama-director-novella/releases/download/v1.0/module.zip",
+  "readme": "https://github.com/phoenix1cold/drama-director-novella/blob/main/README.md",
+  "bugs": "https://github.com/phoenix1cold/drama-director-novella/issues"
+}

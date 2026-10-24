@@ -1,4 +1,10 @@
+> Локальная сборка 1.1.0-local.1: см. LOCAL_BUILD_RU.md. Описание ниже относится к исходному проекту.
+
 # Drama Director — Novella (Visual Novel)
+
+## Local 3D scene extension
+
+The **3D** tab supports GLB/GLTF/FBX environment objects and character models, animations, camera and lighting controls, and scene persistence. Mouse Control opens a separate draggable editor with object transforms and locks. The **STT** button can download multilingual Whisper tiny for local browser transcription. Three.js and the Whisper runtime are bundled locally. See [3D, Mixamo, and Whisper guide (Russian)](SCENE_3D_RU.md) for usage, limitations, and tests.
 
 <p align="center">
   <a href="https://discord.gg/wSfn962R">

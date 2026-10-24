@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Utility Classes ────────────────────────────────────────────────────── */
-.dd-hidden { display: none !important; }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-hidden { display: none !important; }
 
 /* ── OVERLAY ────────────────────────────────────────────────────────────── */
 #dd-vn-overlay {
@@ -122,6 +122,36 @@
   0%,100%{opacity:1;transform:scale(1)}
   50%{opacity:.7;transform:scale(1.15)}
 }
+
+#vn-3d-host {
+  position: absolute; inset: 0; z-index: 5; pointer-events: none;
+}
+#vn-3d-host canvas { display: block; width: 100%; height: 100%; }
+#vn-3d-host.vn-3d-editing { pointer-events: auto; z-index: 15; }
+.vn-3d-tools { position: fixed; top: 100px; right: 24px; z-index: 10020; width: 300px; max-width: calc(100vw - 16px); box-sizing: border-box; border: 1px solid #44444e; border-radius: 6px; background: #141416; color: #c8c8d0; box-shadow: 0 8px 28px #0008; font: 12px/1.4 system-ui, sans-serif; pointer-events: auto; }
+.vn-3d-tools[hidden] { display: none; }
+.vn-3d-tools-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #ffffff14; cursor: move; user-select: none; touch-action: none; color: #e6bd81; }
+.vn-3d-tools-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 10px; max-height: calc(100vh - 100px); overflow: auto; }
+.vn-3d-tools-body[hidden] { display: none; }
+.vn-3d-tools button, .vn-3d-tools select { box-sizing: border-box; margin: 0; padding: 5px 6px; width: 100%; min-width: 0; min-height: 32px; height: auto; font: inherit; line-height: 1.3; white-space: normal; background: #1a1a1e; color: #c8c8d0; border: 1px solid #ffffff24; border-radius: 4px; cursor: pointer; box-shadow: none; }
+.vn-3d-tools-header button { width: 26px; min-height: 24px; flex: 0 0 26px; padding: 0; }
+.vn-3d-tools button:hover { border-color: #e6bd8180; background: #27231e; }
+.vn-3d-tools button.active { background: #f59e0b20; border-color: #e6bd81; color: #f3ca8e; }
+.vn-3d-tools button:disabled { opacity: .4; cursor: default; }
+.vn-3d-tools select, .vn-3d-selection-status, .vn-3d-tools-hint { grid-column: 1 / -1; }
+.vn-3d-tools-hint { margin: 0; padding-top: 6px; border-top: 1px solid #ffffff14; font-size: 11px; color: #a5a5af; }
+.vn-3d-selection-status { font-size: 11px; color: #e6bd81; }
+.theme-light .vn-3d-tools { background: #f5f3ef; color: #34312c; border-color: #c8bca9; }
+.theme-light .vn-3d-tools :is(button, select) { background: #ede9e3; color: #34312c; border-color: #b7aa96; }
+.vn-stt-popup { position: absolute; right: 16px; top: 70px; z-index: 220; width: 370px; max-width: 90vw; padding: 16px; background: #202532; color: white; border: 1px solid #71809a; border-radius: 8px; pointer-events: auto; }
+.vn-stt-popup button, .vn-stt-popup select, #vn-stt-settings button, #vn-stt-settings select { width: 100%; margin: 4px 0; }
+.vn-stt-popup p, #vn-stt-settings p { font-size: 12px; overflow-wrap: anywhere; }
+.vn-3d-field { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; min-width: 0; }
+.vn-3d-field input { width: 100%; }
+.vn-3d-field input[type="checkbox"] { width: 20px; }
+.vn-3d-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+#vn-3d-editor > button { margin: 8px 0; }
+#vn-3d-editor summary { cursor: pointer; font-weight: bold; }
 
 .vn-bg-layer {
   position: absolute; inset: 0; z-index: 1;
@@ -344,8 +374,8 @@
 /* ── Диалоговое окно ───────────────────────────────────────────────────── */
 .vn-dialogue-box {
   position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-  width: 1640px; display: flex;
-  z-index: 10; pointer-events: none;
+  width: 1640px; max-width: calc(100vw - 36px); display: flex;
+  z-index: 30; pointer-events: none;
 }
 .vn-dialogue-inner {
   flex: 1; background: rgba(5,5,15,.88);
@@ -527,33 +557,26 @@
 /* Foundry windows sit above the VN overlay (z-index:100) but well below
    Tagify / PF2e autocomplete dropdowns (z-index:9999).
    Value 200 is the sweet spot: overlay(100) < windows(200) < autocomplete(9999) */
-.dialog,
-.form-application,
-.window-app:not(.dd-vn-panel),
-.application:not(.dd-vn-panel) {
-  z-index: 200 !important;
-}
 
 /* FilePicker must be above the VN panel (10002) — rule placed AFTER the general
    .application rule so equal-specificity !important resolves in our favour. */
-.filepicker,
-.app.window-app.filepicker,
-.application.filepicker,
-[data-application="filepicker"],
-[data-application="file-picker"],
-.window-app.filepicker {
+body:has(#dd-vn-overlay.interactive) .filepicker,
+body:has(#dd-vn-overlay.interactive) .app.window-app.filepicker,
+body:has(#dd-vn-overlay.interactive) .application.filepicker,
+body:has(#dd-vn-overlay.interactive) [data-application="filepicker"],
+body:has(#dd-vn-overlay.interactive) [data-application="file-picker"],
+body:has(#dd-vn-overlay.interactive) .window-app.filepicker {
   z-index: 10060 !important;
   pointer-events: auto !important;
 }
 
-}
 
-/* ══════════════════════════════════════════════════════════════════════════
+/* ═════════════════════════════════════════════════════════════════════════
    VN PANEL — CINEMATIC DIRECTOR CONSOLE
    Aesthetic: deep stage, amber accents, editorial precision
    ══════════════════════════════════════════════════════════════════════════ */
 
-:root {
+:is(#dd-vn-panel,#dd-vn-overlay,#vn-emotion-wheel,#vn-player-menu) {
   --vn-bg:        #0e0e10;
   --vn-bg2:       #141416;
   --vn-bg3:       #1a1a1e;
@@ -1039,14 +1062,14 @@
 }
 
 /* ── Section styles ──────────────────────────────────────────────────────── */
-.dd-section {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-section {
   background: var(--vn-bg3);
   border: 1px solid var(--vn-border);
   border-radius: var(--vn-radius);
   padding: 12px 14px;
 }
 
-.dd-section h3 {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-section h3 {
   margin: 0 0 10px;
   font-size: 10px;
   font-weight: 700;
@@ -1058,7 +1081,7 @@
   gap: 6px;
 }
 
-.dd-section h3 i { color: var(--vn-amber); font-size: 9px; }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-section h3 i { color: var(--vn-amber); font-size: 9px; }
 
 .vn-section-hdr {
   display: flex;
@@ -1069,7 +1092,7 @@
 .vn-section-hdr h3 { margin: 0; flex: 1; }
 
 /* ── Form elements ──────────────────────────────────────────────────────── */
-.dd-input {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-input {
   background: rgba(0,0,0,.35);
   border: 1px solid rgba(255,255,255,.08);
   border-radius: var(--vn-radius-sm);
@@ -1078,9 +1101,9 @@
   font-size: 12px;
   transition: border-color .12s;
 }
-.dd-input:focus { border-color: var(--vn-amber); outline: none; box-shadow: 0 0 0 1px var(--vn-amber-dim); }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-input:focus { border-color: var(--vn-amber); outline: none; box-shadow: 0 0 0 1px var(--vn-amber-dim); }
 
-.dd-select, .dd-select-sm {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-select, :is(#dd-vn-panel,#dd-vn-overlay) .dd-select-sm {
   background: rgba(0,0,0,.35);
   border: 1px solid rgba(255,255,255,.08);
   border-radius: var(--vn-radius-sm);
@@ -1090,12 +1113,12 @@
   cursor: pointer;
   transition: border-color .12s;
 }
-.dd-select:focus, .dd-select-sm:focus { border-color: var(--vn-amber); outline: none; }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-select:focus, :is(#dd-vn-panel,#dd-vn-overlay) .dd-select-sm:focus { border-color: var(--vn-amber); outline: none; }
 
-.dd-row { display: flex; align-items: center; gap: 5px; }
-.dd-row-pair { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-row { display: flex; align-items: center; gap: 5px; }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-row-pair { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-.dd-hint {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-hint {
   font-size: 11px;
   color: var(--vn-text-dim);
   line-height: 1.5;
@@ -1103,7 +1126,7 @@
 }
 
 /* Color picker */
-.dd-color {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-color {
   width: 32px;
   height: 28px;
   padding: 1px 2px;
@@ -1115,7 +1138,7 @@
 }
 
 /* Compact slider input */
-.dd-input-sm {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-input-sm {
   flex: 1;
   min-width: 60px;
   height: 4px;
@@ -1132,7 +1155,7 @@
 }
 
 /* Empty states */
-.dd-empty-layers {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-empty-layers {
   color: var(--vn-text-faint);
   text-align: center;
   padding: 16px;
@@ -1148,7 +1171,7 @@
   margin-top: 4px;
 }
 
-.dd-param-group {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-param-group {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1156,14 +1179,14 @@
   color: var(--vn-text-dim);
 }
 
-.dd-param-group span { white-space: nowrap; }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-param-group span { white-space: nowrap; }
 
-.dd-param-check {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-param-check {
   gap: 4px;
   cursor: pointer;
 }
 
-.dd-param-check input { cursor: pointer; accent-color: var(--vn-amber); }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-param-check input { cursor: pointer; accent-color: var(--vn-amber); }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 .vn-btn-primary {
@@ -1235,7 +1258,7 @@
 }
 .vn-btn-add:hover { background: rgba(74,222,128,.16); border-color: rgba(74,222,128,.4); }
 
-.dd-icon-btn {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-icon-btn {
   width: 26px; height: 26px;
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.08);
@@ -1247,9 +1270,9 @@
   transition: background .12s, color .12s, border-color .12s;
   flex-shrink: 0;
 }
-.dd-icon-btn:hover { background: rgba(255,255,255,.09); color: var(--vn-text); border-color: rgba(255,255,255,.15); }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-icon-btn:hover { background: rgba(255,255,255,.09); color: var(--vn-text); border-color: rgba(255,255,255,.15); }
 
-.dd-btn-danger-sm {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-btn-danger-sm {
   width: 22px; height: 22px;
   background: rgba(248,113,113,.06);
   border: 1px solid rgba(248,113,113,.15);
@@ -1260,7 +1283,7 @@
   font-size: 10px;
   transition: background .12s, color .12s;
 }
-.dd-btn-danger-sm:hover { background: rgba(248,113,113,.18); color: var(--vn-red); }
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-btn-danger-sm:hover { background: rgba(248,113,113,.18); color: var(--vn-red); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    CHARACTERS — list + inspector split
@@ -1524,7 +1547,7 @@
 }
 
 .vn-insp-file-row { display: flex; gap: 4px; }
-.vn-insp-file-row .dd-input { flex: 1; min-width: 0; font-size: 11px; }
+:is(#dd-vn-panel,#dd-vn-overlay) .vn-insp-file-row .dd-input { flex: 1; min-width: 0; font-size: 11px; }
 
 /* Portrait previews */
 .vn-insp-portrait-preview { display: flex; gap: 5px; margin-top: 4px; }
@@ -1571,7 +1594,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
 .vn-insp-flag input { cursor: pointer; accent-color: var(--vn-amber); }
 
 /* Player select */
-.vn-insp-field .dd-select { width: 100%; }
+:is(#dd-vn-panel,#dd-vn-overlay) .vn-insp-field .dd-select { width: 100%; }
 
 /* Emotions section */
 .vn-insp-emotions {
@@ -1777,7 +1800,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   margin-bottom: 7px;
   flex-shrink: 0;
 }
-.vn-chars-search .dd-input {
+:is(#dd-vn-panel,#dd-vn-overlay) .vn-chars-search .dd-input {
   width: 100%;
 }
 
@@ -2384,7 +2407,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   background: rgba(255,220,60,.04);
   padding: 8px 10px;
 }
-.vn-gml-depth-slider.dd-hidden {
+:is(#dd-vn-panel,#dd-vn-overlay) .vn-gml-depth-slider.dd-hidden {
   display: none !important;
 }
 
@@ -3187,7 +3210,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   box-shadow: 0 0 6px rgba(100,220,100,.3);
 }
 
-.dd-btn-danger-sm {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-btn-danger-sm {
   flex-shrink: 0;
   width: 22px;
   height: 22px;
@@ -3203,7 +3226,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   transition: all .15s;
 }
 
-.dd-btn-danger-sm:hover {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-btn-danger-sm:hover {
   background: rgba(200,60,60,.25);
   color: #ff8080;
 }
@@ -3999,7 +4022,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   color: #8f8;
 }
 
-.dd-btn-danger-sm {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-btn-danger-sm {
   width: 24px;
   height: 24px;
   border-radius: 4px;
@@ -4014,7 +4037,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   transition: all .15s;
 }
 
-.dd-btn-danger-sm:hover {
+:is(#dd-vn-panel,#dd-vn-overlay) .dd-btn-danger-sm:hover {
   background: rgba(255,80,80,.2);
   border-color: rgba(255,80,80,.5);
   color: #f88;
@@ -4200,7 +4223,7 @@ input[type=number].vn-spinner::-webkit-outer-spin-button { opacity: 1; }
   margin-bottom: 4px;
 }
 
-.vn-char-emo-row .dd-input { font-size: 11px; }
+:is(#dd-vn-panel,#dd-vn-overlay) .vn-char-emo-row .dd-input { font-size: 11px; }
 
 .vn-emo-apply-btn {
   width: 24px; height: 24px;

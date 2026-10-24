@@ -4,7 +4,12 @@
       "label": "Novella",
       "hint": "Visual Novel mode",
       "desc": "Characters, backgrounds, dialogue, emotions, mic."
-    }
+    },
+    "keys": {
+      "emotionWheel": "Emotion wheel",
+      "microphone": "Toggle microphone"
+    },
+    "macroDenied": "Macro unavailable: check the current user’s permissions."
   },
   "DRAMADIRECTOR": {
     "vn": {
@@ -375,7 +380,24 @@
       "animSwipeLeft": "Swipe left",
       "animSwipeRight": "Swipe right",
       "openAnim": "VN open animation",
-      "closeAnim": "VN close animation"
+      "closeAnim": "VN close animation",
+      "help3DTab": "3D: scene and macros",
+      "help3DStartTitle": "Create and show a scene",
+      "help3DStart": "Enable 3D, add character models and environment objects, then Apply 3D scene. Open a local preview and enable Mouse Control. Editing is GM-only. Show to Players starts sharing; 2D/3D gestures and camera changes stream during movement, followed by a final snapshot. Scene saves include models, camera, lights and locks.",
+      "help3DContentTitle": "Content browser and properties",
+      "help3DContent": "B opens the browser of all placed elements, including hidden items. Search, filter, select, toggle visibility or lock an item. Use the gear in its browser row to edit position, dimensions, rotation, scale, model, animation and lighting. P and double-click also open properties. There is no floating gear on models. Locking disables transforms. Properties include focus, duplicate and two-click delete. Drag windows by their headers and scroll long forms.",
+      "help3DKeysTitle": "Keyboard and mouse",
+      "help3DKeys": "<ul class=\"vn-help-list\"><li><b>B</b>: browser; <b>P</b>: properties; <b>L</b>: lock; <b>H</b>: visibility; <b>F</b>: focus; <b>Esc</b>: close properties and clear selection.</li><li><b>Q / W / E / R</b>: drag / translate / rotate / scale. <b>C</b>: camera. Hold <b>Shift</b> for temporary camera control; release to restore the previous mode.</li><li>3D modes require Mouse Control. Wheel cycles overlapping models in object mode. Camera mode: left drag orbits, right drag pans, wheel zooms. A locked camera cannot move.</li><li>Snap: 0.25 translation, 15° rotation, 0.1 scale. Shortcuts use physical key positions and are disabled while typing.</li></ul>",
+      "help3DAssetsTitle": "Models, Mixamo and animation",
+      "help3DAssets": "GLB, GLTF and FBX are supported. Use Foundry paths such as worlds/my-world/models/hero.glb accessible to every player, not local C:\\ paths. GLTF needs its .bin and textures; FBX needs correct relative texture paths. In Mixamo export FBX Binary With Skin for the model and Without Skin for a separate animation of the same character. Empty clip name selects the first animation. Playback, loop and speed are configurable. Try scale 0.01 for FBX and In Place for walking. Automatic retargeting between different skeletons is not supported.",
+      "help3DWorldTitle": "Lights, primitives, backgrounds and spawnpoints",
+      "help3DWorld": "Add cube, sphere, cylinder, cone, plane, billboard, pointLight, spotLight, sun or spawnpoint in the 3D tab. Apply, then edit via the content browser. Light properties include color, intensity, distance, spotlight angle and softness, and shadows. Spawnpoints mark character placement and are GM-only helpers. 2D backgrounds and overlays are enabled separately. Disable the ground plane if it covers a desired background.",
+      "help3DMapTitle": "Character bindings and launch from map",
+      "help3DMap": "In character settings choose an Actor, optionally a specific Token and spawnpoint. Launch with characters on map imports visible player-character tokens from the active map, preserving assigned models and using billboards as fallback. Repeated launches do not duplicate characters. This does not create or move Foundry map TokenDocuments.",
+      "help3DLimitsTitle": "Limitations",
+      "help3DLimits": "The camera is shared. Physics, collisions and Draco / Meshopt / KTX2 decoders are not included. Animation begins after each client loads, without frame synchronization. Portrait emotions and microphone mouth movement do not animate model bones. Model failures retain the portrait; check asset and texture availability.",
+      "help3DMacrosTitle": "3D macros (Script type, GM)",
+      "help3DMacros": "Replace paths and CHARACTER_ID. Copy character IDs from Help → Macros. setScene3D and setCharacter3D replace the entire configuration; omitted settings reset to defaults. These are independent examples; creating a scene replaces existing objects. openLocal previews and showToPlayers shares the scene."
     },
     "notifications": {
       "noToken": "Select a token on the map!",
@@ -405,6 +427,35 @@
       "iimgPresetLoaded": "Interactive preset '{name}' loaded ({count} images)",
       "noChars": "No characters",
       "emotionMacroNotFound": "Emotion macro not found"
-    }
+    },
+    "clearAllInteractive": "Remove all objects",
+    "loadPreset": "Load preset",
+    "interactiveName": "Name",
+    "layerName": "Layer name",
+    "noInteractiveImages": "No interactive images yet",
+    "presetLoad": "Load",
+    "alignCenter": "Center",
+    "generateMacro": "Generate macro",
+    "layerRemove": "Remove layer",
+    "noMacro": "No macro",
+    "imageLayer": "Image",
+    "textAlign": "Text alignment",
+    "clearAll": "Clear all",
+    "noLayers": "No layers yet",
+    "textLayer": "Text",
+    "alignRight": "Right",
+    "layerMoveUp": "Move up",
+    "interactiveMacro": "Macro",
+    "presetSave": "Save",
+    "interactiveHint": "Assign an image and macro. Macros use the current user’s permissions.",
+    "fontSize": "Font size",
+    "presetDelete": "Delete",
+    "addInteractive": "Add interactive image",
+    "alignLeft": "Left",
+    "layerMoveDown": "Move down",
+    "presetName": "Preset name",
+    "interactiveImages": "Interactive images",
+    "layerImage": "Image path",
+    "layerVisible": "Visibility"
   }
 }

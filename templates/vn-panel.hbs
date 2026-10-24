@@ -25,7 +25,13 @@
     </div>
     {{/unless}}
 
+    <button type="button" data-action="vn-open-map" class="vn-btn-secondary vn-launch-map" title="Импортировать персонажей игроков с текущей карты в новеллу">
+      <i class="fas fa-users"></i> Launch with characters on map
+    </button>
     <nav class="vn-sidebar-nav">
+      <button class="vn-nav-btn" data-vtab="3d">
+        <i class="fas fa-cube"></i><span>3D</span>
+      </button>
       <button class="vn-nav-btn" data-vtab="scene">
         <i class="fas fa-image"></i><span>{{localize "DRAMADIRECTOR.vn.tabBackground"}}</span>
       </button>
@@ -57,6 +63,10 @@
 
   {{!-- ═══ PANEL BODY ═══ --}}
   <div class="vn-panel-body">
+    <div class="vn-tab-content dd-hidden" data-vtab-content="3d">
+      <h3><i class="fas fa-cube"></i> 3D</h3>
+      <div id="vn-3d-editor"></div>
+    </div>
 
     {{!-- ─── SCENE / BACKGROUND ─── --}}
     <div class="vn-tab-content dd-hidden" data-vtab-content="scene">
@@ -70,9 +80,9 @@
         <div class="dd-row" style="margin-top:6px;gap:10px;flex-wrap:wrap">
           <label class="dd-row-pair"><span>{{localize "DRAMADIRECTOR.vn.bgFit"}}</span>
             <select id="vn-bg-fit" class="dd-select-sm">
-              <option value="cover"   {{#if (eq bgFit "cover")}}selected{{/if}}>cover</option>
-              <option value="contain" {{#if (eq bgFit "contain")}}selected{{/if}}>contain</option>
-              <option value="fill"    {{#if (eq bgFit "fill")}}selected{{/if}}>fill</option>
+              <option value="cover"   {{#if (ddEq bgFit "cover")}}selected{{/if}}>cover</option>
+              <option value="contain" {{#if (ddEq bgFit "contain")}}selected{{/if}}>contain</option>
+              <option value="fill"    {{#if (ddEq bgFit "fill")}}selected{{/if}}>fill</option>
             </select>
           </label>
           <label class="dd-row-pair"><span>{{localize "DRAMADIRECTOR.vn.bgColor"}}</span>
@@ -113,7 +123,7 @@
           <div class="vn-bg-tiles">
             {{#each this.variants}}
             <button type="button" class="vn-bg-tile" data-bg-variant="{{this.src}}" data-bg-variant-name="{{this.name}}" title="{{this.name}}">
-              {{#if (isVideo this.src)}}
+              {{#if (ddIsVideo this.src)}}
                 <div class="vn-bg-tile-video-wrap">
                   <video class="vn-bg-tile-video" src="{{this.src}}" muted loop preload="none"></video>
                   <i class="fas fa-film vn-bg-tile-video-icon"></i>
@@ -163,7 +173,7 @@
               <div class="vn-char-card-info">
                 <span class="vn-char-card-name">{{#if this.name}}{{this.name}}{{else}}—{{/if}}</span>
                 <span class="vn-char-card-meta">
-                  <span class="vn-char-side-dot {{this.side}}">{{#if (eq this.side "left")}}◀{{else if (eq this.side "center")}}◆{{else}}▶{{/if}}</span>
+                  <span class="vn-char-side-dot {{this.side}}">{{#if (ddEq this.side "left")}}◀{{else if (ddEq this.side "center")}}◆{{else}}▶{{/if}}</span>
                   {{#if this.activeEmotion}}<span class="vn-char-emo-dot" title="{{this.activeEmotion}}"><i class="fas fa-theater-masks"></i></span>{{/if}}
                 </span>
               </div>
@@ -179,14 +189,18 @@
 
           {{!-- Roster presets --}}
           <div class="vn-chars-preset-footer">
-            <select id="vn-chars-preset-select" class="dd-select" style="flex:1">
+            <div class="vn-chars-preset-load-row">
+            <select id="vn-chars-preset-select" class="dd-select">
               <option value="">{{localize "DRAMADIRECTOR.vn.rosterLoad"}}</option>
               {{#each charPresets}}<option value="{{this}}">{{this}}</option>{{/each}}
             </select>
             <button type="button" data-action="vn-chars-load" title="{{localize "DRAMADIRECTOR.presetLoad"}}"><i class="fas fa-upload"></i></button>
             <button type="button" data-action="vn-chars-delete" class="dd-btn-danger" title="{{localize "DRAMADIRECTOR.presetDelete"}}"><i class="fas fa-trash"></i></button>
-            <input type="text" id="vn-chars-preset-name" placeholder="{{localize "DRAMADIRECTOR.vn.rosterName"}}" class="dd-input" style="flex:1"/>
+            </div>
+            <div class="vn-chars-preset-save-row">
+            <input type="text" id="vn-chars-preset-name" placeholder="{{localize "DRAMADIRECTOR.vn.rosterName"}}" class="dd-input"/>
             <button type="button" data-action="vn-chars-save" title="{{localize "DRAMADIRECTOR.presetSave"}}"><i class="fas fa-save"></i></button>
+            </div>
           </div>
 
         </div>{{!-- /vn-chars-list-panel --}}
@@ -217,6 +231,26 @@
             </div>
 
             {{!-- Two columns --}}
+            <div class="vn-character-bindings">
+              <label>Foundry Actor
+                <select class="vn-char-actor dd-select">
+                  <option value="">— Не привязан —</option>
+                  {{#each ../actors}}<option value="{{this.id}}" {{#if (ddEq this.id ../actorId)}}selected{{/if}}>{{this.name}}</option>{{/each}}
+                </select>
+              </label>
+              <label>Токен текущей карты (необязательно)
+                <select class="vn-char-token dd-select">
+                  <option value="">— По Actor —</option>
+                  {{#each ../mapTokens}}<option value="{{this.id}}" {{#if (ddEq this.id ../tokenUuid)}}selected{{/if}}>{{this.name}}</option>{{/each}}
+                </select>
+              </label>
+              <label>Spawnpoint
+                <select class="vn-char-spawnpoint dd-select">
+                  <option value="">— Автоматически —</option>
+                  {{#each ../spawnpoints}}<option value="{{this.id}}" {{#if (ddEq this.id ../spawnpointId)}}selected{{/if}}>{{this.name}}</option>{{/each}}
+                </select>
+              </label>
+            </div>
             <div class="vn-insp-cols">
 
               {{!-- Col 1: Portrait images --}}
@@ -279,40 +313,40 @@
                     <label style="font-size:10px;color:#888">{{localize "DRAMADIRECTOR.vn.animLabel"}}</label>
                     <label style="font-size:10px;color:#888">{{localize "DRAMADIRECTOR.vn.animHideLabel"}}</label>
                     <select class="vn-char-anim-in dd-select" style="font-size:10px">
-                      <option value="none" {{#if (eq this.animIn "none")}}selected{{/if}}>— Нет —</option>
-                      <option value="fade" {{#if (eq this.animIn "fade")}}selected{{/if}}>Угасание</option>
-                      <option value="zoomIn" {{#if (eq this.animIn "zoomIn")}}selected{{/if}}>Увеличение</option>
-                      <option value="zoomOut" {{#if (eq this.animIn "zoomOut")}}selected{{/if}}>Уменьшение</option>
-                      <option value="slideUp" {{#if (eq this.animIn "slideUp")}}selected{{/if}}>Слайд снизу</option>
-                      <option value="slideDown" {{#if (eq this.animIn "slideDown")}}selected{{/if}}>Слайд сверху</option>
-                      <option value="slideLeft" {{#if (eq this.animIn "slideLeft")}}selected{{/if}}>Слайд справа</option>
-                      <option value="slideRight" {{#if (eq this.animIn "slideRight")}}selected{{/if}}>Слайд слева</option>
-                      <option value="blur" {{#if (eq this.animIn "blur")}}selected{{/if}}>Размытие</option>
-                      <option value="rise" {{#if (eq this.animIn "rise")}}selected{{/if}}>Подъём</option>
-                      <option value="drop" {{#if (eq this.animIn "drop")}}selected{{/if}}>Падение</option>
-                      <option value="spin" {{#if (eq this.animIn "spin")}}selected{{/if}}>Вращение</option>
-                      <option value="flip" {{#if (eq this.animIn "flip")}}selected{{/if}}>Переворот X</option>
-                      <option value="flipY" {{#if (eq this.animIn "flipY")}}selected{{/if}}>Переворот Y</option>
-                      <option value="swipeLeft" {{#if (eq this.animIn "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
-                      <option value="swipeRight" {{#if (eq this.animIn "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
+                      <option value="none" {{#if (ddEq this.animIn "none")}}selected{{/if}}>— Нет —</option>
+                      <option value="fade" {{#if (ddEq this.animIn "fade")}}selected{{/if}}>Угасание</option>
+                      <option value="zoomIn" {{#if (ddEq this.animIn "zoomIn")}}selected{{/if}}>Увеличение</option>
+                      <option value="zoomOut" {{#if (ddEq this.animIn "zoomOut")}}selected{{/if}}>Уменьшение</option>
+                      <option value="slideUp" {{#if (ddEq this.animIn "slideUp")}}selected{{/if}}>Слайд снизу</option>
+                      <option value="slideDown" {{#if (ddEq this.animIn "slideDown")}}selected{{/if}}>Слайд сверху</option>
+                      <option value="slideLeft" {{#if (ddEq this.animIn "slideLeft")}}selected{{/if}}>Слайд справа</option>
+                      <option value="slideRight" {{#if (ddEq this.animIn "slideRight")}}selected{{/if}}>Слайд слева</option>
+                      <option value="blur" {{#if (ddEq this.animIn "blur")}}selected{{/if}}>Размытие</option>
+                      <option value="rise" {{#if (ddEq this.animIn "rise")}}selected{{/if}}>Подъём</option>
+                      <option value="drop" {{#if (ddEq this.animIn "drop")}}selected{{/if}}>Падение</option>
+                      <option value="spin" {{#if (ddEq this.animIn "spin")}}selected{{/if}}>Вращение</option>
+                      <option value="flip" {{#if (ddEq this.animIn "flip")}}selected{{/if}}>Переворот X</option>
+                      <option value="flipY" {{#if (ddEq this.animIn "flipY")}}selected{{/if}}>Переворот Y</option>
+                      <option value="swipeLeft" {{#if (ddEq this.animIn "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
+                      <option value="swipeRight" {{#if (ddEq this.animIn "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
                     </select>
                     <select class="vn-char-anim-out dd-select" style="font-size:10px">
-                      <option value="none" {{#if (eq this.animOut "none")}}selected{{/if}}>— Нет —</option>
-                      <option value="fade" {{#if (eq this.animOut "fade")}}selected{{/if}}>Угасание</option>
-                      <option value="zoomIn" {{#if (eq this.animOut "zoomIn")}}selected{{/if}}>Увеличение</option>
-                      <option value="zoomOut" {{#if (eq this.animOut "zoomOut")}}selected{{/if}}>Уменьшение</option>
-                      <option value="slideUp" {{#if (eq this.animOut "slideUp")}}selected{{/if}}>Слайд снизу</option>
-                      <option value="slideDown" {{#if (eq this.animOut "slideDown")}}selected{{/if}}>Слайд сверху</option>
-                      <option value="slideLeft" {{#if (eq this.animOut "slideLeft")}}selected{{/if}}>Слайд справа</option>
-                      <option value="slideRight" {{#if (eq this.animOut "slideRight")}}selected{{/if}}>Слайд слева</option>
-                      <option value="blur" {{#if (eq this.animOut "blur")}}selected{{/if}}>Размытие</option>
-                      <option value="rise" {{#if (eq this.animOut "rise")}}selected{{/if}}>Подъём</option>
-                      <option value="drop" {{#if (eq this.animOut "drop")}}selected{{/if}}>Падение</option>
-                      <option value="spin" {{#if (eq this.animOut "spin")}}selected{{/if}}>Вращение</option>
-                      <option value="flip" {{#if (eq this.animOut "flip")}}selected{{/if}}>Переворот X</option>
-                      <option value="flipY" {{#if (eq this.animOut "flipY")}}selected{{/if}}>Переворот Y</option>
-                      <option value="swipeLeft" {{#if (eq this.animOut "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
-                      <option value="swipeRight" {{#if (eq this.animOut "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
+                      <option value="none" {{#if (ddEq this.animOut "none")}}selected{{/if}}>— Нет —</option>
+                      <option value="fade" {{#if (ddEq this.animOut "fade")}}selected{{/if}}>Угасание</option>
+                      <option value="zoomIn" {{#if (ddEq this.animOut "zoomIn")}}selected{{/if}}>Увеличение</option>
+                      <option value="zoomOut" {{#if (ddEq this.animOut "zoomOut")}}selected{{/if}}>Уменьшение</option>
+                      <option value="slideUp" {{#if (ddEq this.animOut "slideUp")}}selected{{/if}}>Слайд снизу</option>
+                      <option value="slideDown" {{#if (ddEq this.animOut "slideDown")}}selected{{/if}}>Слайд сверху</option>
+                      <option value="slideLeft" {{#if (ddEq this.animOut "slideLeft")}}selected{{/if}}>Слайд справа</option>
+                      <option value="slideRight" {{#if (ddEq this.animOut "slideRight")}}selected{{/if}}>Слайд слева</option>
+                      <option value="blur" {{#if (ddEq this.animOut "blur")}}selected{{/if}}>Размытие</option>
+                      <option value="rise" {{#if (ddEq this.animOut "rise")}}selected{{/if}}>Подъём</option>
+                      <option value="drop" {{#if (ddEq this.animOut "drop")}}selected{{/if}}>Падение</option>
+                      <option value="spin" {{#if (ddEq this.animOut "spin")}}selected{{/if}}>Вращение</option>
+                      <option value="flip" {{#if (ddEq this.animOut "flip")}}selected{{/if}}>Переворот X</option>
+                      <option value="flipY" {{#if (ddEq this.animOut "flipY")}}selected{{/if}}>Переворот Y</option>
+                      <option value="swipeLeft" {{#if (ddEq this.animOut "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
+                      <option value="swipeRight" {{#if (ddEq this.animOut "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
                     </select>
                   </div>
                 </div>
@@ -323,7 +357,7 @@
                   <select class="vn-char-player dd-select">
                     <option value="">{{localize "DRAMADIRECTOR.vn.charNoPlayer"}}</option>
                     {{#each ../players}}
-                    <option value="{{this.id}}" {{#if (eq ../playerId this.id)}}selected{{/if}}>{{this.name}}</option>
+                    <option value="{{this.id}}" {{#if (ddEq ../playerId this.id)}}selected{{/if}}>{{this.name}}</option>
                     {{/each}}
                   </select>
                 </div>
@@ -345,7 +379,7 @@
                   <select class="vn-char-macro-sel dd-select" style="width:100%;margin-top:4px;font-size:11px">
                     <option value="">{{localize "DRAMADIRECTOR.noMacro"}}</option>
                     {{#each ../macros}}
-                    <option value="{{this.id}}" {{#if (eq ../macroId this.id)}}selected{{/if}}>{{this.name}}</option>
+                    <option value="{{this.id}}" {{#if (ddEq ../macroId this.id)}}selected{{/if}}>{{this.name}}</option>
                     {{/each}}
                   </select>
                 </div>
@@ -366,14 +400,14 @@
                   <input type="text"  class="vn-char-emo-name-inp dd-input" value="{{this.name}}" placeholder="{{localize "DRAMADIRECTOR.vn.emotionName"}}"/>
                   <input type="text"  class="vn-char-emo-img-inp dd-input"  value="{{this.img}}"  data-emo-idx="{{@index}}" placeholder="{{localize "DRAMADIRECTOR.vn.emotionImg"}}"/>
                   <button type="button" class="dd-icon-btn" data-char-action="browse-emotion"  data-emo-idx="{{@index}}" title="{{localize "DRAMADIRECTOR.vn.emotionBrowse"}}"><i class="fas fa-folder-open"></i></button>
-                  <button type="button" class="vn-emo-apply-btn {{#if (eq ../../this.activeEmotion this.name)}}active{{/if}}" data-char-action="apply-emotion" data-emo-idx="{{@index}}" title="{{localize "DRAMADIRECTOR.vn.emotionApply"}}"><i class="fas fa-check"></i></button>
+                  <button type="button" class="vn-emo-apply-btn {{#if (ddEq ../../this.activeEmotion this.name)}}active{{/if}}" data-char-action="apply-emotion" data-emo-idx="{{@index}}" title="{{localize "DRAMADIRECTOR.vn.emotionApply"}}"><i class="fas fa-check"></i></button>
                   <button type="button" class="dd-icon-btn dd-btn-danger-sm" data-char-action="remove-emotion" data-emo-idx="{{@index}}" title="{{localize "DRAMADIRECTOR.vn.emotionRemove"}}"><i class="fas fa-times"></i></button>
                   <div class="dd-row vn-emo-macro-row" style="margin-top:2px;gap:4px">
                     <i class="fas fa-code" style="color:#888;font-size:10px;margin-left:2px" title="{{localize "DRAMADIRECTOR.interactiveMacro"}}"></i>
                     <select class="vn-char-emo-macro-sel dd-select" style="flex:1;font-size:11px">
                       <option value="">{{localize "DRAMADIRECTOR.noMacro"}}</option>
                       {{#each ../../macros}}
-                      <option value="{{this.id}}" {{#if (eq ../macroId this.id)}}selected{{/if}}>{{this.name}}</option>
+                      <option value="{{this.id}}" {{#if (ddEq ../macroId this.id)}}selected{{/if}}>{{this.name}}</option>
                       {{/each}}
                     </select>
                   </div>
@@ -421,7 +455,7 @@
         <select id="vn-gm-char" class="dd-select">
           <option value="">{{localize "DRAMADIRECTOR.vn.dlgGmSelect"}}</option>
           {{#each chars}}
-          <option value="{{this.id}}" {{#if (eq ../gmCharId this.id)}}selected{{/if}}>
+          <option value="{{this.id}}" {{#if (ddEq ../gmCharId this.id)}}selected{{/if}}>
             {{#if this.name}}{{this.name}}{{else}}{{localize "DRAMADIRECTOR.vn.dlgGmNoName"}} ({{this.side}}){{/if}}
           </option>
           {{/each}}
@@ -444,7 +478,7 @@
         <p class="dd-hint" style="font-size:11px;color:#888;margin:0 0 6px">{{{localize "DRAMADIRECTOR.vn.layersHint"}}}</p>
         <div class="vn-layer-list" id="vn-layer-list">
           {{#each layers}}
-          <div class="vn-layer-row {{#if (eq this.type 'text')}}vn-layer-row-text{{else}}vn-layer-row-img{{/if}}" data-layer-idx="{{this._idx}}">
+          <div class="vn-layer-row {{#if (ddEq this.type 'text')}}vn-layer-row-text{{else}}vn-layer-row-img{{/if}}" data-layer-idx="{{this._idx}}">
             <div class="vn-layer-row-header">
               <span class="vn-layer-type-badge {{this.type}}">{{this.type}}</span>
               <input type="text" class="vn-layer-name-inp dd-input" value="{{this.name}}" placeholder="{{localize "DRAMADIRECTOR.layerName"}}" style="flex:1;max-width:120px"/>
@@ -458,7 +492,7 @@
               <div class="vn-tag-chips-row">{{#each this.tags}}<span class="vn-tag-chip">{{this}}<button class="vn-tag-chip-del" data-tag="{{this}}" tabindex="-1">×</button></span>{{/each}}</div>
               <input class="vn-tag-inp dd-input" type="text" placeholder='{{localize "DRAMADIRECTOR.vn.tagPlaceholder"}}' autocomplete="off" style="font-size:10px;padding:2px 5px"/>
             </div>
-            {{#if (eq this.type 'image')}}
+            {{#if (ddEq this.type 'image')}}
             <div class="dd-row" style="margin-top:4px">
               <input type="text" class="vn-layer-src-inp dd-input" value="{{this.src}}" placeholder="{{localize "DRAMADIRECTOR.layerImage"}}"/>
               <button type="button" data-layer-action="browse"><i class="fas fa-folder-open"></i></button>
@@ -476,9 +510,9 @@
               </label>
               <label class="dd-param-group"><span>{{localize "DRAMADIRECTOR.textAlign"}}</span>
                 <select class="vn-layer-align dd-select-sm">
-                  <option value="left"   {{#if (eq this.textAlign "left")}}selected{{/if}}>{{localize "DRAMADIRECTOR.alignLeft"}}</option>
-                  <option value="center" {{#if (eq this.textAlign "center")}}selected{{/if}}>{{localize "DRAMADIRECTOR.alignCenter"}}</option>
-                  <option value="right"  {{#if (eq this.textAlign "right")}}selected{{/if}}>{{localize "DRAMADIRECTOR.alignRight"}}</option>
+                  <option value="left"   {{#if (ddEq this.textAlign "left")}}selected{{/if}}>{{localize "DRAMADIRECTOR.alignLeft"}}</option>
+                  <option value="center" {{#if (ddEq this.textAlign "center")}}selected{{/if}}>{{localize "DRAMADIRECTOR.alignCenter"}}</option>
+                  <option value="right"  {{#if (ddEq this.textAlign "right")}}selected{{/if}}>{{localize "DRAMADIRECTOR.alignRight"}}</option>
                 </select>
               </label>
             </div>
@@ -487,40 +521,40 @@
               <label style="font-size:10px;color:#888">{{localize "DRAMADIRECTOR.vn.animLabel"}}</label>
               <label style="font-size:10px;color:#888">{{localize "DRAMADIRECTOR.vn.animHideLabel"}}</label>
               <select class="vn-layer-anim-in dd-select" style="font-size:10px">
-                      <option value="none" {{#if (eq this.animIn "none")}}selected{{/if}}>— Нет —</option>
-                      <option value="fade" {{#if (eq this.animIn "fade")}}selected{{/if}}>Угасание</option>
-                      <option value="zoomIn" {{#if (eq this.animIn "zoomIn")}}selected{{/if}}>Увеличение</option>
-                      <option value="zoomOut" {{#if (eq this.animIn "zoomOut")}}selected{{/if}}>Уменьшение</option>
-                      <option value="slideUp" {{#if (eq this.animIn "slideUp")}}selected{{/if}}>Слайд снизу</option>
-                      <option value="slideDown" {{#if (eq this.animIn "slideDown")}}selected{{/if}}>Слайд сверху</option>
-                      <option value="slideLeft" {{#if (eq this.animIn "slideLeft")}}selected{{/if}}>Слайд справа</option>
-                      <option value="slideRight" {{#if (eq this.animIn "slideRight")}}selected{{/if}}>Слайд слева</option>
-                      <option value="blur" {{#if (eq this.animIn "blur")}}selected{{/if}}>Размытие</option>
-                      <option value="rise" {{#if (eq this.animIn "rise")}}selected{{/if}}>Подъём</option>
-                      <option value="drop" {{#if (eq this.animIn "drop")}}selected{{/if}}>Падение</option>
-                      <option value="spin" {{#if (eq this.animIn "spin")}}selected{{/if}}>Вращение</option>
-                      <option value="flip" {{#if (eq this.animIn "flip")}}selected{{/if}}>Переворот X</option>
-                      <option value="flipY" {{#if (eq this.animIn "flipY")}}selected{{/if}}>Переворот Y</option>
-                      <option value="swipeLeft" {{#if (eq this.animIn "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
-                      <option value="swipeRight" {{#if (eq this.animIn "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
+                      <option value="none" {{#if (ddEq this.animIn "none")}}selected{{/if}}>— Нет —</option>
+                      <option value="fade" {{#if (ddEq this.animIn "fade")}}selected{{/if}}>Угасание</option>
+                      <option value="zoomIn" {{#if (ddEq this.animIn "zoomIn")}}selected{{/if}}>Увеличение</option>
+                      <option value="zoomOut" {{#if (ddEq this.animIn "zoomOut")}}selected{{/if}}>Уменьшение</option>
+                      <option value="slideUp" {{#if (ddEq this.animIn "slideUp")}}selected{{/if}}>Слайд снизу</option>
+                      <option value="slideDown" {{#if (ddEq this.animIn "slideDown")}}selected{{/if}}>Слайд сверху</option>
+                      <option value="slideLeft" {{#if (ddEq this.animIn "slideLeft")}}selected{{/if}}>Слайд справа</option>
+                      <option value="slideRight" {{#if (ddEq this.animIn "slideRight")}}selected{{/if}}>Слайд слева</option>
+                      <option value="blur" {{#if (ddEq this.animIn "blur")}}selected{{/if}}>Размытие</option>
+                      <option value="rise" {{#if (ddEq this.animIn "rise")}}selected{{/if}}>Подъём</option>
+                      <option value="drop" {{#if (ddEq this.animIn "drop")}}selected{{/if}}>Падение</option>
+                      <option value="spin" {{#if (ddEq this.animIn "spin")}}selected{{/if}}>Вращение</option>
+                      <option value="flip" {{#if (ddEq this.animIn "flip")}}selected{{/if}}>Переворот X</option>
+                      <option value="flipY" {{#if (ddEq this.animIn "flipY")}}selected{{/if}}>Переворот Y</option>
+                      <option value="swipeLeft" {{#if (ddEq this.animIn "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
+                      <option value="swipeRight" {{#if (ddEq this.animIn "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
                     </select>
               <select class="vn-layer-anim-out dd-select" style="font-size:10px">
-                      <option value="none" {{#if (eq this.animOut "none")}}selected{{/if}}>— Нет —</option>
-                      <option value="fade" {{#if (eq this.animOut "fade")}}selected{{/if}}>Угасание</option>
-                      <option value="zoomIn" {{#if (eq this.animOut "zoomIn")}}selected{{/if}}>Увеличение</option>
-                      <option value="zoomOut" {{#if (eq this.animOut "zoomOut")}}selected{{/if}}>Уменьшение</option>
-                      <option value="slideUp" {{#if (eq this.animOut "slideUp")}}selected{{/if}}>Слайд снизу</option>
-                      <option value="slideDown" {{#if (eq this.animOut "slideDown")}}selected{{/if}}>Слайд сверху</option>
-                      <option value="slideLeft" {{#if (eq this.animOut "slideLeft")}}selected{{/if}}>Слайд справа</option>
-                      <option value="slideRight" {{#if (eq this.animOut "slideRight")}}selected{{/if}}>Слайд слева</option>
-                      <option value="blur" {{#if (eq this.animOut "blur")}}selected{{/if}}>Размытие</option>
-                      <option value="rise" {{#if (eq this.animOut "rise")}}selected{{/if}}>Подъём</option>
-                      <option value="drop" {{#if (eq this.animOut "drop")}}selected{{/if}}>Падение</option>
-                      <option value="spin" {{#if (eq this.animOut "spin")}}selected{{/if}}>Вращение</option>
-                      <option value="flip" {{#if (eq this.animOut "flip")}}selected{{/if}}>Переворот X</option>
-                      <option value="flipY" {{#if (eq this.animOut "flipY")}}selected{{/if}}>Переворот Y</option>
-                      <option value="swipeLeft" {{#if (eq this.animOut "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
-                      <option value="swipeRight" {{#if (eq this.animOut "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
+                      <option value="none" {{#if (ddEq this.animOut "none")}}selected{{/if}}>— Нет —</option>
+                      <option value="fade" {{#if (ddEq this.animOut "fade")}}selected{{/if}}>Угасание</option>
+                      <option value="zoomIn" {{#if (ddEq this.animOut "zoomIn")}}selected{{/if}}>Увеличение</option>
+                      <option value="zoomOut" {{#if (ddEq this.animOut "zoomOut")}}selected{{/if}}>Уменьшение</option>
+                      <option value="slideUp" {{#if (ddEq this.animOut "slideUp")}}selected{{/if}}>Слайд снизу</option>
+                      <option value="slideDown" {{#if (ddEq this.animOut "slideDown")}}selected{{/if}}>Слайд сверху</option>
+                      <option value="slideLeft" {{#if (ddEq this.animOut "slideLeft")}}selected{{/if}}>Слайд справа</option>
+                      <option value="slideRight" {{#if (ddEq this.animOut "slideRight")}}selected{{/if}}>Слайд слева</option>
+                      <option value="blur" {{#if (ddEq this.animOut "blur")}}selected{{/if}}>Размытие</option>
+                      <option value="rise" {{#if (ddEq this.animOut "rise")}}selected{{/if}}>Подъём</option>
+                      <option value="drop" {{#if (ddEq this.animOut "drop")}}selected{{/if}}>Падение</option>
+                      <option value="spin" {{#if (ddEq this.animOut "spin")}}selected{{/if}}>Вращение</option>
+                      <option value="flip" {{#if (ddEq this.animOut "flip")}}selected{{/if}}>Переворот X</option>
+                      <option value="flipY" {{#if (ddEq this.animOut "flipY")}}selected{{/if}}>Переворот Y</option>
+                      <option value="swipeLeft" {{#if (ddEq this.animOut "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
+                      <option value="swipeRight" {{#if (ddEq this.animOut "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
                     </select>
             </div>
             <div class="vn-insp-spinners-grid" style="margin-top:6px">
@@ -528,7 +562,7 @@
               <div class="vn-insp-spinner-cell"><label>Y</label><input type="number" class="vn-layer-y vn-spinner" value="{{this.y}}" step="5"/></div>
               <div class="vn-insp-spinner-cell"><label>Z</label><input type="number" class="vn-layer-z vn-spinner" value="{{this.zIndex}}" step="1"/></div>
               <div class="vn-insp-spinner-cell"><label>W</label><input type="number" class="vn-layer-w vn-spinner" value="{{this.width}}" min="1" step="5"/></div>
-              {{#if (eq this.type 'image')}}
+              {{#if (ddEq this.type 'image')}}
               <div class="vn-insp-spinner-cell"><label>H</label><input type="number" class="vn-layer-h vn-spinner" value="{{this.height}}" min="1" step="5"/></div>
               {{/if}}
               <div class="vn-insp-spinner-cell"><label>Opacity</label><input type="number" class="vn-layer-opacity vn-spinner" value="{{this.opacity}}" min="0" max="1" step="0.05"/></div>
@@ -599,7 +633,7 @@
               <select class="vn-iimg-macro-sel dd-select" style="flex:1">
                 <option value="">{{localize "DRAMADIRECTOR.noMacro"}}</option>
                 {{#each ../macros}}
-                <option value="{{this.id}}" {{#if (eq ../macroId this.id)}}selected{{/if}}>{{this.name}}</option>
+                <option value="{{this.id}}" {{#if (ddEq ../macroId this.id)}}selected{{/if}}>{{this.name}}</option>
                 {{/each}}
               </select>
             </div>
@@ -607,40 +641,40 @@
               <label style="font-size:10px;color:#888">{{localize "DRAMADIRECTOR.vn.animLabel"}}</label>
               <label style="font-size:10px;color:#888">{{localize "DRAMADIRECTOR.vn.animHideLabel"}}</label>
               <select class="vn-iimg-anim-in dd-select" style="font-size:10px">
-                      <option value="none" {{#if (eq this.animIn "none")}}selected{{/if}}>— Нет —</option>
-                      <option value="fade" {{#if (eq this.animIn "fade")}}selected{{/if}}>Угасание</option>
-                      <option value="zoomIn" {{#if (eq this.animIn "zoomIn")}}selected{{/if}}>Увеличение</option>
-                      <option value="zoomOut" {{#if (eq this.animIn "zoomOut")}}selected{{/if}}>Уменьшение</option>
-                      <option value="slideUp" {{#if (eq this.animIn "slideUp")}}selected{{/if}}>Слайд снизу</option>
-                      <option value="slideDown" {{#if (eq this.animIn "slideDown")}}selected{{/if}}>Слайд сверху</option>
-                      <option value="slideLeft" {{#if (eq this.animIn "slideLeft")}}selected{{/if}}>Слайд справа</option>
-                      <option value="slideRight" {{#if (eq this.animIn "slideRight")}}selected{{/if}}>Слайд слева</option>
-                      <option value="blur" {{#if (eq this.animIn "blur")}}selected{{/if}}>Размытие</option>
-                      <option value="rise" {{#if (eq this.animIn "rise")}}selected{{/if}}>Подъём</option>
-                      <option value="drop" {{#if (eq this.animIn "drop")}}selected{{/if}}>Падение</option>
-                      <option value="spin" {{#if (eq this.animIn "spin")}}selected{{/if}}>Вращение</option>
-                      <option value="flip" {{#if (eq this.animIn "flip")}}selected{{/if}}>Переворот X</option>
-                      <option value="flipY" {{#if (eq this.animIn "flipY")}}selected{{/if}}>Переворот Y</option>
-                      <option value="swipeLeft" {{#if (eq this.animIn "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
-                      <option value="swipeRight" {{#if (eq this.animIn "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
+                      <option value="none" {{#if (ddEq this.animIn "none")}}selected{{/if}}>— Нет —</option>
+                      <option value="fade" {{#if (ddEq this.animIn "fade")}}selected{{/if}}>Угасание</option>
+                      <option value="zoomIn" {{#if (ddEq this.animIn "zoomIn")}}selected{{/if}}>Увеличение</option>
+                      <option value="zoomOut" {{#if (ddEq this.animIn "zoomOut")}}selected{{/if}}>Уменьшение</option>
+                      <option value="slideUp" {{#if (ddEq this.animIn "slideUp")}}selected{{/if}}>Слайд снизу</option>
+                      <option value="slideDown" {{#if (ddEq this.animIn "slideDown")}}selected{{/if}}>Слайд сверху</option>
+                      <option value="slideLeft" {{#if (ddEq this.animIn "slideLeft")}}selected{{/if}}>Слайд справа</option>
+                      <option value="slideRight" {{#if (ddEq this.animIn "slideRight")}}selected{{/if}}>Слайд слева</option>
+                      <option value="blur" {{#if (ddEq this.animIn "blur")}}selected{{/if}}>Размытие</option>
+                      <option value="rise" {{#if (ddEq this.animIn "rise")}}selected{{/if}}>Подъём</option>
+                      <option value="drop" {{#if (ddEq this.animIn "drop")}}selected{{/if}}>Падение</option>
+                      <option value="spin" {{#if (ddEq this.animIn "spin")}}selected{{/if}}>Вращение</option>
+                      <option value="flip" {{#if (ddEq this.animIn "flip")}}selected{{/if}}>Переворот X</option>
+                      <option value="flipY" {{#if (ddEq this.animIn "flipY")}}selected{{/if}}>Переворот Y</option>
+                      <option value="swipeLeft" {{#if (ddEq this.animIn "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
+                      <option value="swipeRight" {{#if (ddEq this.animIn "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
                     </select>
               <select class="vn-iimg-anim-out dd-select" style="font-size:10px">
-                      <option value="none" {{#if (eq this.animOut "none")}}selected{{/if}}>— Нет —</option>
-                      <option value="fade" {{#if (eq this.animOut "fade")}}selected{{/if}}>Угасание</option>
-                      <option value="zoomIn" {{#if (eq this.animOut "zoomIn")}}selected{{/if}}>Увеличение</option>
-                      <option value="zoomOut" {{#if (eq this.animOut "zoomOut")}}selected{{/if}}>Уменьшение</option>
-                      <option value="slideUp" {{#if (eq this.animOut "slideUp")}}selected{{/if}}>Слайд снизу</option>
-                      <option value="slideDown" {{#if (eq this.animOut "slideDown")}}selected{{/if}}>Слайд сверху</option>
-                      <option value="slideLeft" {{#if (eq this.animOut "slideLeft")}}selected{{/if}}>Слайд справа</option>
-                      <option value="slideRight" {{#if (eq this.animOut "slideRight")}}selected{{/if}}>Слайд слева</option>
-                      <option value="blur" {{#if (eq this.animOut "blur")}}selected{{/if}}>Размытие</option>
-                      <option value="rise" {{#if (eq this.animOut "rise")}}selected{{/if}}>Подъём</option>
-                      <option value="drop" {{#if (eq this.animOut "drop")}}selected{{/if}}>Падение</option>
-                      <option value="spin" {{#if (eq this.animOut "spin")}}selected{{/if}}>Вращение</option>
-                      <option value="flip" {{#if (eq this.animOut "flip")}}selected{{/if}}>Переворот X</option>
-                      <option value="flipY" {{#if (eq this.animOut "flipY")}}selected{{/if}}>Переворот Y</option>
-                      <option value="swipeLeft" {{#if (eq this.animOut "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
-                      <option value="swipeRight" {{#if (eq this.animOut "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
+                      <option value="none" {{#if (ddEq this.animOut "none")}}selected{{/if}}>— Нет —</option>
+                      <option value="fade" {{#if (ddEq this.animOut "fade")}}selected{{/if}}>Угасание</option>
+                      <option value="zoomIn" {{#if (ddEq this.animOut "zoomIn")}}selected{{/if}}>Увеличение</option>
+                      <option value="zoomOut" {{#if (ddEq this.animOut "zoomOut")}}selected{{/if}}>Уменьшение</option>
+                      <option value="slideUp" {{#if (ddEq this.animOut "slideUp")}}selected{{/if}}>Слайд снизу</option>
+                      <option value="slideDown" {{#if (ddEq this.animOut "slideDown")}}selected{{/if}}>Слайд сверху</option>
+                      <option value="slideLeft" {{#if (ddEq this.animOut "slideLeft")}}selected{{/if}}>Слайд справа</option>
+                      <option value="slideRight" {{#if (ddEq this.animOut "slideRight")}}selected{{/if}}>Слайд слева</option>
+                      <option value="blur" {{#if (ddEq this.animOut "blur")}}selected{{/if}}>Размытие</option>
+                      <option value="rise" {{#if (ddEq this.animOut "rise")}}selected{{/if}}>Подъём</option>
+                      <option value="drop" {{#if (ddEq this.animOut "drop")}}selected{{/if}}>Падение</option>
+                      <option value="spin" {{#if (ddEq this.animOut "spin")}}selected{{/if}}>Вращение</option>
+                      <option value="flip" {{#if (ddEq this.animOut "flip")}}selected{{/if}}>Переворот X</option>
+                      <option value="flipY" {{#if (ddEq this.animOut "flipY")}}selected{{/if}}>Переворот Y</option>
+                      <option value="swipeLeft" {{#if (ddEq this.animOut "swipeLeft")}}selected{{/if}}>Сдвиг влево</option>
+                      <option value="swipeRight" {{#if (ddEq this.animOut "swipeRight")}}selected{{/if}}>Сдвиг вправо</option>
                     </select>
             </div>
             <div class="vn-insp-spinners-grid" style="margin-top:6px">
@@ -751,16 +785,17 @@
 
       <section class="dd-section" style="margin-top:8px">
         <h3><i class="fas fa-closed-captioning"></i> {{localize "DRAMADIRECTOR.vn.micSpeechSection"}}</h3>
+        <div id="vn-stt-settings"></div>
         <p class="dd-hint">{{localize "DRAMADIRECTOR.vn.micSpeechHint"}}</p>
         <div class="dd-row dd-row-pair">
           <label>{{localize "DRAMADIRECTOR.vn.micLanguage"}}</label>
           <select id="vn-mic-lang" class="dd-select">
-            <option value="ru-RU" {{#if (eq micLang "ru-RU")}}selected{{/if}}>Русский</option>
-            <option value="en-US" {{#if (eq micLang "en-US")}}selected{{/if}}>English</option>
-            <option value="de-DE" {{#if (eq micLang "de-DE")}}selected{{/if}}>Deutsch</option>
-            <option value="fr-FR" {{#if (eq micLang "fr-FR")}}selected{{/if}}>Français</option>
-            <option value="ja-JP" {{#if (eq micLang "ja-JP")}}selected{{/if}}>日本語</option>
-            <option value="zh-CN" {{#if (eq micLang "zh-CN")}}selected{{/if}}>简体中文</option>
+            <option value="ru-RU" {{#if (ddEq micLang "ru-RU")}}selected{{/if}}>Русский</option>
+            <option value="en-US" {{#if (ddEq micLang "en-US")}}selected{{/if}}>English</option>
+            <option value="de-DE" {{#if (ddEq micLang "de-DE")}}selected{{/if}}>Deutsch</option>
+            <option value="fr-FR" {{#if (ddEq micLang "fr-FR")}}selected{{/if}}>Français</option>
+            <option value="ja-JP" {{#if (ddEq micLang "ja-JP")}}selected{{/if}}>日本語</option>
+            <option value="zh-CN" {{#if (ddEq micLang "zh-CN")}}selected{{/if}}>简体中文</option>
           </select>
         </div>
       </section>
@@ -772,6 +807,7 @@
     <div class="vn-tab-content dd-hidden" data-vtab-content="help">
 
       <div class="vn-help-tabs-row">
+        <button class="vn-help-tab" data-help-tab="scene3d"><i class="fas fa-cube"></i> {{localize "DRAMADIRECTOR.vn.help3DTab"}}</button>
         <button class="vn-help-tab active" data-help-tab="basics"><i class="fas fa-rocket"></i> {{localize "DRAMADIRECTOR.vn.helpTabBasics"}}</button>
         <button class="vn-help-tab" data-help-tab="controls"><i class="fas fa-mouse-pointer"></i> {{localize "DRAMADIRECTOR.vn.helpTabControls"}}</button>
         <button class="vn-help-tab" data-help-tab="features"><i class="fas fa-sliders-h"></i> {{localize "DRAMADIRECTOR.vn.helpTabFeatures"}}</button>
@@ -902,6 +938,50 @@
               <li>{{{localize "DRAMADIRECTOR.vn.helpInteractiveItem6"}}}</li>
             </ul>
           </section>
+        </div>
+
+        <div class="vn-help-panel" data-help-panel="scene3d" style="display:none;flex-direction:column;gap:0">
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DStartTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DStart"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DContentTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DContent"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DKeysTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DKeys"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DAssetsTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DAssets"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DWorldTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DWorld"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DMapTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DMap"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DLimitsTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DLimits"}}}</div></section>
+          <section class="vn-help-section"><h3>{{localize "DRAMADIRECTOR.vn.help3DMacrosTitle"}}</h3><div>{{{localize "DRAMADIRECTOR.vn.help3DMacros"}}}</div></section>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.setScene3D</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.setScene3D({
+  enabled: true, ground: true,
+  cameraX: 0, cameraY: 2, cameraZ: 7,
+  targetX: 0, targetY: 1, targetZ: 0,
+  objects: [
+    { id: 'box', name: 'Box', kind: 'cube', x: 2 },
+    { id: 'key-light', kind: 'spotLight', x: 2, y: 4, rx: -45, intensity: 12 },
+    { id: 'start', kind: 'spawnpoint', x: -1 }
+  ]
+});" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.setScene3D({
+  enabled: true, ground: true,
+  cameraX: 0, cameraY: 2, cameraZ: 7,
+  targetX: 0, targetY: 1, targetZ: 0,
+  objects: [
+    { id: 'box', name: 'Box', kind: 'cube', x: 2 },
+    { id: 'key-light', kind: 'spotLight', x: 2, y: 4, rx: -45, intensity: 12 },
+    { id: 'start', kind: 'spawnpoint', x: -1 }
+  ]
+});</pre></div>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.setCharacter3D</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.setCharacter3D('CHARACTER_ID', {
+  src: 'worlds/my-world/models/hero.fbx',
+  animationSrc: 'worlds/my-world/models/idle.fbx',
+  x: -1, scale: 0.01, playing: true, loop: true
+});" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.setCharacter3D('CHARACTER_ID', {
+  src: 'worlds/my-world/models/hero.fbx',
+  animationSrc: 'worlds/my-world/models/idle.fbx',
+  x: -1, scale: 0.01, playing: true, loop: true
+});</pre></div>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.openLocal</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.openLocal();" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.openLocal();</pre></div>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.showToPlayers</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.showToPlayers();" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.showToPlayers();</pre></div>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.launchWithMapCharacters</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.launchWithMapCharacters();" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.launchWithMapCharacters();</pre></div>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.setCharacter3D</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.setCharacter3D('CHARACTER_ID', {});" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.setCharacter3D('CHARACTER_ID', {});</pre></div>
+          <div class="vn-macro-card"><div class="vn-macro-card-header"><code>DDVNApi.setScene3D</code><button type="button" class="vn-macro-card-copy" data-macro="DDVNApi.setScene3D({ enabled: false });" title="Copy"><i class="fas fa-copy"></i></button></div><pre class="vn-macro-card-code">DDVNApi.setScene3D({ enabled: false });</pre></div>
         </div>
 
         <div class="vn-help-panel" data-help-panel="macros" style="display:none;flex-direction:column;gap:0">

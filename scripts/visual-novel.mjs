@@ -10,6 +10,12 @@ function getLanguagePromise() {
   return Promise.resolve();
 }
 
+import { VN3D, scene3D, model3D, mount3DEditor } from './vn-3d.mjs';
+import { Whisper, LocalSpeech, mountSTTSettings } from './vn-whisper.mjs';
+import { MotionQueue } from './vn-motion.mjs';
+import { charactersFromMap } from './vn-map-characters.mjs';
+import { SceneEditor } from './vn-scene-editor.mjs';
+
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const MODULE_ID = 'drama-director-novella';
 const SOCKET    = `module.${MODULE_ID}`;
@@ -18,39 +24,43 @@ const SOCKET    = `module.${MODULE_ID}`;
  *  animType: e.g. 'fade','slideUp','blur' — matches vn-anim-* keyframes.
  *  dir: 'in' | 'out'. onDone called after 'out' finishes. */
 function _animateElem(el, animType, dir, onDone) {
-  if (!animType || animType === 'none') { if (dir === 'out' && onDone) onDone(); return; }
-  const cls = dir === 'in' ? 'vn-elem-anim-in' : 'vn-elem-anim-out';
-  el.style.animationName = `vn-anim-${animType}-${dir}`;
-  el.classList.add(cls);
-  if (dir === 'out' && onDone) {
-    const dur = parseFloat(getComputedStyle(el).animationDuration || '0.4') * 1000;
-    setTimeout(onDone, dur + 20);
+  el._vnAnimation?.cancel();
+  el.classList.remove('vn-elem-anim-in', 'vn-elem-anim-out');
+  el.style.animationName = '';
+  if (!animType || animType === 'none' || globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !el.animate) {
+    onDone?.(); return;
   }
+  const base = { transform: el.style.transform || 'none', opacity: getComputedStyle(el).opacity, filter: el.style.filter || 'none', clipPath: 'inset(0 0 0 0)' };
+  const delta = {
+    zoomIn: dir === 'in' ? 'scale(.7)' : 'scale(1.3)', zoomOut: dir === 'in' ? 'scale(1.3)' : 'scale(.7)',
+    slideUp: `translateY(${dir === 'in' ? 80 : -80}px)`, slideDown: `translateY(${dir === 'in' ? -80 : 80}px)`,
+    slideLeft: 'translateX(-120px)', slideRight: 'translateX(120px)',
+    rise: 'translateY(40px) scale(.94)', drop: 'translateY(-40px) scale(.94)',
+    spin: 'scale(.4) rotate(-180deg)', flip: 'perspective(800px) rotateX(75deg)', flipY: 'perspective(800px) rotateY(75deg)', blur: 'scale(1.04)',
+  }[animType] || '';
+  const hidden = { ...base, opacity: 0, transform: `${base.transform === 'none' ? '' : base.transform} ${delta}`.trim() || 'none' };
+  if (animType === 'blur') hidden.filter = 'blur(20px)';
+  if (animType === 'swipeLeft') hidden.clipPath = 'inset(0 100% 0 0)';
+  if (animType === 'swipeRight') hidden.clipPath = 'inset(0 0 0 100%)';
+  const animation = el.animate(dir === 'in' ? [hidden, base] : [base, hidden], {
+    duration: dir === 'in' ? 450 : 320, easing: 'ease-out', fill: 'both',
+  });
+  el._vnAnimation = animation;
+  animation.finished.then(() => {
+    if (el._vnAnimation !== animation) return;
+    onDone?.(); animation.cancel(); el._vnAnimation = null;
+  }).catch(() => {});
 }
 
-/** Execute a macro safely for any user.
- *  Observer-level (perm >= 2) is sufficient — no need to grant Owner rights.
- *  If the user has less than Observer access, delegates to GM via socket. */
+/** Execute only with the current user's own Foundry permissions. */
 function _execMacro(macroId) {
   if (!macroId) return;
   const macro = game.macros?.get(macroId) ?? game.macros?.getName(macroId);
-  if (!macro) {
-    ui.notifications?.warn(`Drama Director: Макрос не найден (${macroId})`);
+  if (!macro || !macro.canExecute) {
+    ui.notifications?.warn(game.i18n.localize('DDNOVELLA.macroDenied'));
     return;
   }
-  if (game.user?.isGM) {
-    macro.execute();
-    return;
-  }
-  const ownership = macro.ownership ?? {};
-  const userPerm  = ownership[game.userId] ?? ownership.default ?? 0;
-  // Foundry ownership: 0=NONE 1=LIMITED 2=OBSERVER 3=OWNER
-  // Observer (2) is enough — delegate to GM only if truly no access
-  if (userPerm >= 2) {
-    macro.execute();
-  } else {
-    game.socket.emit(SOCKET, { type: 'vn:execMacro', macroId });
-  }
+  Promise.resolve(macro.execute()).catch(e => ui.notifications?.error(e.message));
 }
 
 function deepClone(o) { return foundry.utils.deepClone(o); }
@@ -147,6 +157,7 @@ export function newInteractiveImage() {
 // ─── Состояние ───────────────────────────────────────────────────────────────
 const _state = {
   open: false,
+  scene3d: scene3D(),
   background: '',
   bgFit: 'cover',
   bgColor: '#0a0a14',
@@ -218,6 +229,7 @@ export class DDVNOverlay {
     el.id = this.ID;
     el.innerHTML = `
       <div class="vn-bg-layer" id="vn-bg-layer"></div>
+      <div id="vn-3d-host" aria-hidden="true"></div>
       <div class="vn-stage" id="vn-stage">
         <div id="vn-unified-container" class="vn-unified-container"></div>
       </div>
@@ -287,10 +299,15 @@ export class DDVNOverlay {
         <button id="vn-player-close" class="vn-btn-danger" title="${game.i18n.localize('DRAMADIRECTOR.vn.overlay.closeScene') || 'Закрыть сцену'}"><i class="fas fa-times"></i> ${game.i18n.localize('DRAMADIRECTOR.vn.overlay.closeScene') || 'Закрыть сцену'}</button>
       </div>
       <div id="vn-gm-left-bar" style="display:none"></div>`;
-    document.getElementById('interface')?.appendChild(el);
+    (document.getElementById('interface') || document.body).appendChild(el);
 
     el.querySelector('#vn-ctrl-stop')?.addEventListener('click', () => DDVNManager.stop(true));
     el.querySelector('#vn-ctrl-panel')?.addEventListener('click', () => DDVNApi.openPanel());
+    if (game.user?.isGM) {
+      const browserButton = document.createElement('button'); browserButton.type = 'button'; browserButton.textContent = 'Элементы (B)'; browserButton.title = 'Браузер элементов сцены';
+      browserButton.onclick = () => window.dispatchEvent(new CustomEvent('vn-scene-browser'));
+      el.querySelector('#vn-gm-bar')?.append(browserButton);
+    }
     el.querySelector('#vn-ctrl-quicksave')?.addEventListener('click', () => DDVNManager.quickSaveScene());
     el.querySelector('#vn-ctrl-show-players')?.addEventListener('click', () => DDVNManager.showToPlayers());
 
@@ -310,6 +327,16 @@ export class DDVNOverlay {
       if (DDVNMic._active) DDVNMic.stop();
       else await DDVNMic.start();
       this.updateMicIndicator();
+    });
+    const sttButton = document.createElement('button');
+    sttButton.type = 'button'; sttButton.className = 'vn-quick-btn'; sttButton.textContent = 'STT';
+    sttButton.title = 'Whisper / настройки распознавания';
+    el.querySelector('#vn-mic-indicator')?.append(sttButton);
+    sttButton.addEventListener('click', () => {
+      let popup = el.querySelector('.vn-stt-popup');
+      if (popup) { popup.remove(); return; }
+      popup = document.createElement('div'); popup.className = 'vn-stt-popup';
+      el.append(popup); mountSTTSettings(popup, () => DDVNMic.restartSpeech());
     });
 
     el.querySelector('#vn-quick-lang')?.addEventListener('change', (e) => {
@@ -643,6 +670,7 @@ export class DDVNOverlay {
 
   // Подсвечивает выбранный элемент белым ореолом
   static _applyScrollHighlight(id, type) {
+    if (SceneEditor.browser) SceneEditor.select(`${type}:${id}`, true);
     const container = document.getElementById('vn-unified-container');
     if (!container) return;
 
@@ -656,7 +684,9 @@ export class DDVNOverlay {
       type === 'layer'       ? `[data-layer-id="${id}"]` :
                                `[data-img-id="${id}"]`;
     const el = container.querySelector(selector);
-    if (el) el.classList.add('vn-scroll-selected');
+    if (el) {
+      el.classList.add('vn-scroll-selected');
+    }
   }
 
   // Показывает небольшой тост со списком объектов и стрелкой на текущий
@@ -780,11 +810,34 @@ export class DDVNOverlay {
   }
 
   static clearStage() {
+    VN3D.dispose();
     const container = document.getElementById('vn-unified-container');
-    if (container) container.innerHTML = '';
+    if (container) { container.querySelectorAll('video').forEach(v => v.pause()); container.replaceChildren(); container._prevVisible = new Set(); }
     const dialogue = document.getElementById('vn-dialogue');
     if (dialogue) dialogue.style.display = 'none';
     this.hideAllSubtitles();
+  }
+
+  static moveRemoteElement(type, item) {
+    const attribute = type === 'char' ? 'charId' : type === 'layer' ? 'layerId' : 'imgId';
+    const el = [...(document.getElementById('vn-unified-container')?.children || [])].find(node => node.dataset[attribute] === item.id);
+    if (!el) { this._renderAllElements(_state); return; }
+    if (type === 'char') {
+      if (item._pinned) el.style.left = `${item.x}px`;
+      if (item._pinnedWidth) el.style.width = `${item._pinnedWidth}px`;
+      const wrap = el.querySelector('.vn-char-wrapper'), portrait = el.querySelector('.vn-char-portrait');
+      if (wrap) wrap.style.transform = `translateY(${item.y}px)`;
+      if (portrait) {
+        const mirror = portrait.style.transform.match(/scaleX\(([^)]+)\)/)?.[1] || '1';
+        portrait.style.transform = `scaleX(${mirror}) scale(${item.scale})`;
+      }
+    } else {
+      el.style.left = `${item.x + (item.width || 200) / 2}px`;
+      el.style.top = `${item.y + (item.height || 200) / 2}px`;
+      el.style.transform = `translate(-50%,-50%) scale(${item.scale})`;
+    }
+    el.style.zIndex = String(100 + (item.zIndex || 0) + (item.active ? 500 : 0));
+    el._vnSignature = null; // Final snapshot must reconcile even if it returns to the original position.
   }
 
   static apply(state) {
@@ -803,6 +856,7 @@ export class DDVNOverlay {
         overlay.classList.add('vn-opening');
         setTimeout(() => overlay.classList.remove('vn-opening'), 500);
       }
+      if (!overlay._wasOpen) overlay.querySelectorAll('video').forEach(v => v.play().catch(() => {}));
       overlay._wasOpen = true;
     } else {
       overlay.classList.remove('interactive');
@@ -815,11 +869,32 @@ export class DDVNOverlay {
         if (!overlay.classList.contains('interactive')) {
           overlay.classList.remove('vn-closing');
           overlay.style.display = 'none';
+          this.clearStage();
+          overlay.querySelectorAll('video').forEach(v => v.pause());
         }
       }, 550);
     }
-    this._renderBg(state);
-    this._renderAllElements(state);
+    VN3D.sync(state, () => this._renderAllElements(DDVNManager.getState()), (patch, key, live) => DDVNManager.edit3D(patch, key, live));
+    if (!SceneEditor.bridge) SceneEditor.configure({
+      state: () => _state,
+      patch: (key, patch, model, live) => DDVNManager.editSceneItem(key, patch, model, live),
+      duplicate: key => DDVNManager.duplicateSceneItem(key),
+      remove: key => DDVNManager.removeSceneItem(key),
+      select: key => {
+        document.querySelectorAll('.vn-scroll-selected').forEach(el => el.classList.remove('vn-scroll-selected'));
+        if (!key) { VN3D.renderer?.controls.select(null); return; }
+        if (VN3D.renderer?.entries.has(key)) VN3D.renderer.controls.select(key);
+        else { const colon = key.indexOf(':'); DDVNOverlay._applyScrollHighlight(key.slice(colon + 1), key.slice(0, colon)); }
+      },
+      focus: key => {
+        if (VN3D.renderer?.entries.has(key)) { VN3D.renderer.controls.select(key); VN3D.renderer.controls.focusSelection(); }
+        else if (key) { const colon = key.indexOf(':'); DDVNOverlay._applyScrollHighlight(key.slice(colon + 1), key.slice(0, colon)); }
+      },
+      mode: mode => VN3D.renderer?.controls.setMode(mode),
+      cameraShift: active => VN3D.renderer?.controls.temporaryCamera(active),
+    });
+    SceneEditor.sync();
+    if (state.open) { this._renderBg(state); this._renderAllElements(state); }
     this._renderDialogue(state.dialogue);
     this._renderNameBar(state.chars || []);
 
@@ -880,41 +955,40 @@ export class DDVNOverlay {
   static _renderBg(state) {
     const bg = document.getElementById('vn-bg-layer');
     if (!bg) return;
-    
-    const currentSrc = bg.dataset.src || '';
-    const stateBg = state.background || '';
-    
-    if (stateBg) this._lastBg = stateBg;
-    
+    const hidden = state.scene3d?.enabled && !state.scene3d.useBackground;
+    bg.style.display = hidden ? 'none' : '';
+    if (hidden) { bg.querySelector('video')?.pause(); return; }
+    const src = state.background || '';
+    const fit = ['cover', 'contain', 'fill'].includes(state.bgFit) ? state.bgFit : 'cover';
     bg.style.backgroundColor = state.bgColor || '#0a0a14';
     bg.style.setProperty('--vn-dim', String(state.dimBg || 0));
-
-    let bgToRender = stateBg || this._lastBg || currentSrc;
-    
-    if (!bgToRender && !currentSrc && !this._lastBg) return;
-    
-    if (bgToRender && bgToRender !== currentSrc) {
-      const isVid = /\.(webm|mp4|ogv)$/i.test(bgToRender);
-      if (isVid) {
-        bg.dataset.src = bgToRender;
-        bg.style.backgroundImage = 'none';
-        bg.innerHTML = `<video autoplay loop muted playsinline
-          style="width:100%;height:100%;object-fit:${state.bgFit || 'cover'}"
-          src="${bgToRender}"></video>`;
-      } else {
-        bg.dataset.src = bgToRender;
-        bg.innerHTML = '';
-        bg.style.backgroundImage = `url('${bgToRender}')`;
-        bg.style.backgroundSize = state.bgFit || 'cover';
-        bg.style.backgroundPosition = 'center';
-      }
+    if (src !== (bg.dataset.src || '')) {
+      bg.querySelector('video')?.pause();
+      bg.replaceChildren(); bg.style.backgroundImage = 'none'; bg.dataset.src = src;
+      if (/\.(webm|mp4|ogv)(?:[?#]|$)/i.test(src)) {
+        const video = document.createElement('video');
+        video.src = src; video.autoplay = video.loop = video.muted = true;
+        video.playsInline = true; video.style.cssText = 'width:100%;height:100%;';
+        bg.append(video); video.play().catch(() => {});
+      } else if (src) bg.style.backgroundImage = `url(${JSON.stringify(src)})`;
     }
+    bg.style.backgroundSize = fit === 'fill' ? '100% 100%' : fit;
+    bg.style.backgroundPosition = 'center'; bg.style.backgroundRepeat = 'no-repeat';
+    const video = bg.querySelector('video');
+    if (video) { video.style.objectFit = fit; if (state.open && video.paused) video.play().catch(() => {}); }
   }
 
   // Internal: actually rebuild the element DOM after any exit animations finish
   static _doRenderAllElements(state) { this._renderAllElements(state, true); }
 
   static _renderAllElements(state, _skipExitAnim = false) {
+    // Hide portraits only after their model loaded successfully; preserve dialogue/name state.
+    if (state.scene3d?.enabled) state = {
+      ...state,
+      chars: (state.chars || []).filter(c => !VN3D.hasCharacter(c.id) && (state.scene3d.overlay2d || c.model3d?.src)),
+      layers: state.scene3d.overlay2d ? state.layers : [],
+      interactiveImages: state.scene3d.overlay2d ? state.interactiveImages : [],
+    };
     const container = document.getElementById('vn-unified-container');
     if (!container) return;
 
@@ -930,40 +1004,20 @@ export class DDVNOverlay {
     // Find elements currently in DOM that are leaving (id present but not in nextVisible)
     const _prevVisible = container._prevVisible ?? new Set();
 
-    if (!_skipExitAnim) {
-      // Collect all elements that need an exit animation
-      const exitEls = [];
-      container.querySelectorAll('[data-char-id],[data-layer-id],[data-img-id]').forEach(el => {
-        const id = el.dataset.charId || el.dataset.layerId || el.dataset.imgId;
-        if (id && _prevVisible.has(id) && !nextVisible.has(id)) {
-          // Find animOut from state
-          const item =
-            (state.chars || []).find(c => c.id === id) ||
-            (state.layers || []).find(l => l.id === id) ||
-            (state.interactiveImages || []).find(i => i.id === id);
-          const animOut = item?.animOut || 'fade';
-          if (animOut && animOut !== 'none') {
-            exitEls.push({ el: el.cloneNode(true), animOut });
-          }
-        }
-      });
-
-      if (exitEls.length) {
-        // Play exit animations on clones, then do the real rebuild
-        const overlay = container.closest('#dd-vn-overlay') || container.parentElement;
-        exitEls.forEach(({ el, animOut }) => {
-          el.style.pointerEvents = 'none';
-          overlay?.appendChild(el);
-          _animateElem(el, animOut, 'out', () => el.remove());
+    const previous = new Map();
+    for (const el of [...container.children]) {
+      if (el.dataset.vnExiting) continue;
+      const id = el.dataset.charId || el.dataset.layerId || el.dataset.imgId;
+      const key = `${el.dataset.elemType}:${id}`;
+      previous.set(key, el);
+      if (!nextVisible.has(id)) {
+        el.dataset.vnExiting = 'true'; el.style.pointerEvents = 'none';
+        _animateElem(el, el._vnAnimOut || 'fade', 'out', () => {
+          el.querySelectorAll('video').forEach(v => v.pause()); el.remove();
         });
-        // Delay rebuild to allow exit anim to be visible (max animOut duration ~400ms)
-        setTimeout(() => this._doRenderAllElements(state), 60);
-        return;
       }
     }
-
     container._prevVisible = new Set();
-    container.innerHTML = '';
 
     const chars = state.chars || [];
     const layers = state.layers || [];
@@ -1055,7 +1109,24 @@ export class DDVNOverlay {
 
     // ─── Рендерим все элементы ───
     allElements.forEach(elem => {
+      const dataForSignature = { ...elem.data };
+      if (elem.type === 'char') delete dataForSignature.active;
+      const signature = JSON.stringify([dataForSignature, elem.baseX, elem.width, elem.side, state.mouseControl, state.playerControl]);
+      const key = `${elem.type}:${elem.data.id}`;
+      const previousEl = previous.get(key);
+      if (previousEl && !previousEl.dataset.vnExiting && previousEl._vnSignature === signature) {
+        previousEl.style.zIndex = elem.zIndex;
+        if (elem.type === 'char') this._updateCharActivity(previousEl, elem.data, hasActive);
+        container._prevVisible.add(elem.data.id);
+        return;
+      }
+      if (previousEl && !previousEl.dataset.vnExiting) {
+        previousEl._vnAnimation?.cancel();
+        previousEl.querySelectorAll('video').forEach(v => v.pause()); previousEl.remove();
+      }
       const el = document.createElement('div');
+      el._vnSignature = signature;
+      el._vnAnimOut = elem.data.animOut || 'fade';
       const isMouseControl = state.mouseControl;
       const canDrag = this._canDragElement(elem.data, state);
 
@@ -1066,7 +1137,7 @@ export class DDVNOverlay {
         const charScale = char.scale || 1;
         const offsetX = char.x || 0;
         const offsetY = char.y || 0;
-        const mirror = elem.side === 'center' ? (char.mirror ? -1 : 1) : ((char.mirror ? 1 : 0) ^ (elem.side === 'right' ? 1 : 0));
+        const mirror = elem.side === 'center' ? !!char.mirror : (!!char.mirror !== (elem.side === 'right')); 
 
         el.className = `vn-char ${visClass}${char.locked ? ' vn-locked' : ''}`;
         el.dataset.charId = char.id;
@@ -1093,7 +1164,7 @@ export class DDVNOverlay {
 
         const imgId = `char-img-${char.id}-${Date.now()}`;
 
-        const _isVid = src => /\.(webm|mp4|ogv)$/i.test(src);
+        const _isVid = src => /\.(webm|mp4|ogv)(?:[?#]|$)/i.test(src);
         const _mediaEl = (src, extraClass = '', style = '') => {
           const vid = _isVid(src);
           const cursor = isMouseControl && canDrag && !char.locked ? 'grab' : 'pointer';
@@ -1209,7 +1280,7 @@ export class DDVNOverlay {
         el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%) scale(${layerScale});transform-origin:center center;z-index:${elem.zIndex};opacity:${layer.opacity??1};`;
         
         if (layer.type === 'image' && layer.src) {
-          const isVid = /\.(webm|mp4|ogv)$/i.test(layer.src);
+          const isVid = /\.(webm|mp4|ogv)(?:[?#]|$)/i.test(layer.src);
           const cur   = isMouseControl && !layer.locked ? 'grab' : 'default';
           // Build via DOM API to avoid HTML injection from filename / src.
           const media = document.createElement(isVid ? 'video' : 'img');
@@ -1337,9 +1408,25 @@ export class DDVNOverlay {
       }
 
       container.appendChild(el);
+      if (SceneEditor.selected === `${elem.type}:${elem.data.id}`) el.classList.add('vn-scroll-selected');
+      if (game.user?.isGM) {
+        const key = `${elem.type === 'interactive' ? 'interactive' : elem.type}:${elem.data.id}`;
+        el.addEventListener('pointerdown', () => { if (_state.mouseControl && SceneEditor.browser) SceneEditor.select(key, true); }, { capture: true });
+        el.addEventListener('dblclick', e => { if (_state.mouseControl) { e.preventDefault(); e.stopPropagation(); SceneEditor.properties(key); } });
+      }
     });
 
-    console.log('DD VN | Rendered elements:', allElements.length);
+
+  }
+
+  static _updateCharActivity(el, char, hasActive) {
+    el.classList.toggle('vn-char-all-visible', !hasActive);
+    el.classList.toggle('vn-char-active', hasActive && !!char.active);
+    el.classList.toggle('vn-char-dim', hasActive && !char.active);
+    el.querySelector('.vn-char-img-base')?.classList.toggle('vn-img-hidden', !!char.active);
+    el.querySelector('.vn-char-img-active')?.classList.toggle('vn-img-visible', !!char.active);
+    const portrait = el.querySelector('.vn-char-portrait');
+    if (portrait) portrait.style.filter = char.active ? `drop-shadow(0 0 20px ${char.nameColor || '#ffe066'})` : '';
   }
 
   static _canDragElement(elemData, state) {
@@ -2140,7 +2227,7 @@ export class DDVNGMBar {
         </summary>
         <div class="vn-gml-bg-items">`;
       for (const v of variants) {
-        const isVid = /\.(webm|mp4|ogv)$/i.test(v.src);
+        const isVid = /\.(webm|mp4|ogv)(?:[?#]|$)/i.test(v.src);
         const icon  = isVid ? 'fa-film' : 'fa-image';
         const active2 = v.src === currentBg ? 'gml-bg-active' : '';
         html += `
@@ -2479,7 +2566,7 @@ export class DDVNGMBar {
 
     bar.querySelectorAll('.vn-gml-bg-item').forEach(item => {
       const src = item.dataset.bgSrc;
-      const isVid = /\.(webm|mp4|ogv)$/i.test(src || '');
+      const isVid = /\.(webm|mp4|ogv)(?:[?#]|$)/i.test(src || '');
 
       item.addEventListener('mouseenter', (e) => {
         bgPreview.innerHTML = '';
@@ -2592,6 +2679,9 @@ export class DDVNGMBar {
 // MIC
 // ─────────────────────────────────────────────────────────────────────────────
 export class DDVNMic {
+  static _localSpeech = null;
+  static _speechGeneration = 0;
+  static _starting = false;
   static _stream = null;
   static _ctx = null;
   static _analyser = null;
@@ -2603,7 +2693,7 @@ export class DDVNMic {
   static lang = 'ru-RU';
 
   static async start() {
-    if (this._active) return;
+    if (this._active || this._starting) return;
     // Fresh mic activation — give SR a clean slate; user can re-enable
     // after fixing a previously-broken network/STT path.
     this._srNetworkFails = 0;
@@ -2619,7 +2709,10 @@ export class DDVNMic {
       return;
     }
     try {
+      this._starting = true;
+      const generation = ++this._speechGeneration;
       this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (generation !== this._speechGeneration) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; return; }
       this._ctx = new (window.AudioContext || window.webkitAudioContext)();
       // Chrome auto-suspends an AudioContext that is created outside of a user gesture.
       // resume() is async but doesn't need to be awaited for VAD to start; we fire-and-log.
@@ -2633,22 +2726,26 @@ export class DDVNMic {
       DDVNOverlay.updateMicIndicator();
       console.log('[DD VN] microphone started');
     } catch (e) {
+      this.stop();
       console.error('[DD VN] mic start failed', e);
       const msg = e?.name === 'NotAllowedError'
         ? game.i18n.localize('DRAMADIRECTOR.notifications.micDenied')
         : game.i18n.format('DRAMADIRECTOR.notifications.micNoAccess', { error: e?.message ?? String(e) });
       ui.notifications?.error(msg);
-    }
+    } finally { this._starting = false; }
   }
 
   static stop() {
     this._active = false;
+    ++this._speechGeneration;
+    this._localSpeech?.stop(); this._localSpeech = null;
     clearInterval(this._vadTimer);
-    this._recognition?.stop();
+    try { this._recognition?.stop(); } catch {}
     this._stream?.getTracks().forEach(t => t.stop());
     this._ctx?.close().catch(() => {});
     this._stream = this._ctx = this._analyser = this._recognition = null;
     this._speaking = false;
+    DDVNManager.onLocalSpeaking(false);
     // Commit whatever was buffered before turning the mic off so the user
     // doesn't lose the last utterance.
     this._flushUtterance();
@@ -2692,10 +2789,27 @@ export class DDVNMic {
   }
 
   static _startSpeech() {
+    if (Whisper.provider === 'off') return;
+    if (Whisper.useLocal) {
+      if (!Whisper.downloaded && !Whisper.ready) {
+        ui.notifications?.warn('Нажмите STT → «Скачать Whisper tiny», затем включите микрофон.'); return;
+      }
+      const generation = this._speechGeneration;
+      const speech = new LocalSpeech(
+        text => { if (this._active && generation === this._speechGeneration) DDVNManager.onSpeechResult(text, true); },
+        error => ui.notifications?.warn(`Whisper: ${error.message}`), this.lang, () => this.threshold,
+      );
+      this._localSpeech = speech;
+      speech.start(this._ctx, this._stream).catch(error => {
+        speech.stop();
+        if (this._active && generation === this._speechGeneration) ui.notifications?.error(`Whisper: ${error.message}`);
+      });
+      return;
+    }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
       console.warn('[DD VN] SpeechRecognition API is unavailable — subtitles cannot be transcribed in this browser (Firefox does not support webkitSpeechRecognition; use Chrome, Edge, or Opera).');
-      ui.notifications?.warn('Speech-to-text не поддерживается этим браузером — установи Chrome/Edge для субтитров или используй текстовый чат снизу.');
+      ui.notifications?.warn('STT браузера недоступен. Нажмите STT → «Скачать Whisper tiny» для локального распознавания.');
       return;
     }
     if (this._srGaveUp) {
@@ -2722,6 +2836,7 @@ export class DDVNMic {
     rec.onnomatch     = () => console.log('[DD VN] SR onnomatch');
 
     rec.onresult = e => {
+      if (!this._active || this._recognition !== rec) return;
       // Any successful result resets the network-fail backoff.
       this._srNetworkFails = 0;
 
@@ -2762,15 +2877,17 @@ export class DDVNMic {
     };
 
     rec.onerror = e => {
+      if (!this._active || this._recognition !== rec) return;
       console.warn('[DD VN] SR onerror:', e.error, e.message ?? '');
       if (e.error === 'not-allowed') {
+        this._srGaveUp = true;
         ui.notifications?.warn(game.i18n.localize('DRAMADIRECTOR.notifications.micDenied'));
       } else if (e.error === 'network') {
         this._srNetworkFails++;
         if (this._srNetworkFails === 1) {
           // Tell the user *once*. Spamming the notification on every retry
           // (~1 per second) just buries the rest of the console.
-          ui.notifications?.warn('Speech-to-text недоступен (нет связи с Google STT). Печатай в чат снизу — это работает оффлайн.', { permanent: false });
+          ui.notifications?.warn('Нет связи с Google STT. Нажмите STT → «Скачать Whisper tiny» и выберите локальное распознавание.', { permanent: false });
         }
         if (this._srNetworkFails >= 3) {
           // Give up auto-restarting. Foundry & the chat input still work.
@@ -2780,12 +2897,13 @@ export class DDVNMic {
       } else if (e.error === 'no-speech') {
         // benign — VAD will retrigger us
       } else if (e.error === 'language-not-supported') {
+        this._srGaveUp = true;
         ui.notifications?.warn(`Язык распознавания "${this.lang}" не поддерживается.`);
       }
     };
     rec.onend = () => {
       console.log('[DD VN] SR onend; active=', this._active, 'gaveUp=', this._srGaveUp);
-      if (this._active && !this._srGaveUp) {
+      if (this._active && this._recognition === rec && !this._srGaveUp) {
         try { rec.start(); } catch(err) { console.warn('[DD VN] SR auto-restart failed', err); }
       }
     };
@@ -2803,9 +2921,16 @@ export class DDVNMic {
   static resetSpeechFailures() {
     this._srNetworkFails = 0;
     this._srGaveUp = false;
-    if (this._active && !this._recognition) {
-      this._startSpeech();
-    }
+    this.restartSpeech();
+  }
+
+  static restartSpeech() {
+    ++this._speechGeneration;
+    const old = this._recognition; this._recognition = null;
+    try { old?.abort(); } catch {}
+    this._localSpeech?.stop(); this._localSpeech = null;
+    this._flushUtterance(); this._srGaveUp = false; this._srNetworkFails = 0;
+    if (this._active) this._startSpeech();
   }
 }
 
@@ -2825,6 +2950,8 @@ export class DDVNPresets {
   static IIMGS_MASTER_KEY  = 'vnIimgsMaster';
 
   static register() {
+    if (this._registered) return;
+    this._registered = true;
     const base = { scope: 'world', config: false, type: Object, default: {} };
     for (const k of [this.CHARS_KEY, this.BG_KEY, this.SCENE_KEY, this.LAYERS_KEY, this.IIMGS_KEY])
       game.settings.register(MODULE_ID, k, { ...base });
@@ -2932,6 +3059,107 @@ export class DDVNPresets {
 // MANAGER
 // ─────────────────────────────────────────────────────────────────────────────
 export class DDVNManager {
+  static sceneItem(key) {
+    if (typeof key !== 'string') return null;
+    const colon = key.indexOf(':'), type = key.slice(0, colon), id = key.slice(colon + 1);
+    const list = type === 'char' ? _state.chars : type === 'layer' ? _state.layers : type === 'interactive' ? _state.interactiveImages : type === 'object' ? _state.scene3d.objects : [];
+    const item = list.find(i => i.id === id); return item ? { item, list, type } : null;
+  }
+  static editSceneItem(key, patch, model = false, live = false) {
+    if (!game.user?.isGM) return;
+    const entry = this.sceneItem(key); if (!entry) return;
+    if (model) { this.edit3D(patch, key, live, true); SceneEditor.sync(); return; }
+    const { item, type } = entry;
+    const next = { ...patch };
+    for (const field of ['width', 'height', 'fontSize']) if (field in next) next[field] = Math.max(1, Math.min(10000, Number(next[field]) || 1));
+    if ('scale' in next) { next.scale = Math.max(0.01, Math.min(100, Number(next.scale) || 1)); next.baseScale = next.scale; }
+    if ('opacity' in next) next.opacity = Math.max(0, Math.min(1, Number(next.opacity) || 0));
+    if (type === 'char' && 'x' in next) { next._pinned = true; next._pinnedWidth = item._pinnedWidth || 420; }
+    Object.assign(item, next);
+    if (type === 'char' && item.model3d && 'locked' in next) item.model3d.locked = !!next.locked;
+    this.syncEditorCopies();
+    if (live && Object.keys(next).every(k => ['x', 'y', 'scale', 'baseScale', 'zIndex', '_pinned', '_pinnedWidth'].includes(k))) {
+      this._motion.push(type, item.id, next); DDVNOverlay.moveRemoteElement(type, item);
+    } else this.broadcast();
+  }
+  static syncEditorCopies() {
+    const panel = DDVNPanel._instance; if (!panel) return;
+    panel._chars = deepClone(_state.chars); panel._layers = deepClone(_state.layers); panel._interactiveImages = deepClone(_state.interactiveImages);
+  }
+  static duplicateSceneItem(key) {
+    if (!game.user?.isGM) return null;
+    const entry = this.sceneItem(key); if (!entry) return null;
+    const copy = deepClone(entry.item); copy.id = uid(); copy.name = `${copy.name || 'Элемент'} — копия`; copy.locked = false;
+    if (entry.type === 'object') copy.x = (copy.x || 0) + 1;
+    else { copy.x = (copy.x || 0) + 40; if (copy.model3d) { copy.model3d.x = (copy.model3d.x || 0) + 1; copy.model3d.locked = false; } }
+    delete copy.sourceTokenUuid; delete copy.tokenUuid; delete copy.fromMap;
+    entry.list.push(copy); this.syncEditorCopies(); this.broadcast(); return `${entry.type}:${copy.id}`;
+  }
+  static removeSceneItem(key) {
+    if (!game.user?.isGM) return;
+    const entry = this.sceneItem(key); if (!entry) return;
+    entry.list.splice(entry.list.indexOf(entry.item), 1); this.syncEditorCopies(); this.broadcast();
+  }
+  static _motion = new MotionQueue(changes => {
+    if (!_state.open || (game.user?.isGM && !DDVNManager._shownToPlayers)) return;
+    game.socket.emit(SOCKET, { type: 'vn:motion', userId: game.userId, changes });
+  });
+  static receiveMotion(data) {
+    if (!_state.open || data.userId === game.userId || this._gmOnlyMode) return;
+    const user = game.users?.get(data.userId); if (!user) return;
+    for (const change of (data.changes || []).slice(0, 200)) {
+      const { kind, id, props } = change;
+      if (!props || typeof props !== 'object') continue;
+      if (kind === '3d' && user.isGM) {
+        if (id === null) _state.scene3d = scene3D({ ..._state.scene3d, ...props });
+        else if (id.startsWith('char:')) {
+          const char = _state.chars.find(c => `char:${c.id}` === id);
+          if (char) char.model3d = model3D({ ...char.model3d, ...props });
+        } else {
+          const obj = _state.scene3d.objects.find(o => `object:${o.id}` === id);
+          if (obj) Object.assign(obj, model3D({ ...obj, ...props }));
+        }
+      } else if (['char', 'layer', 'interactive'].includes(kind)) {
+        const list = kind === 'char' ? _state.chars : kind === 'layer' ? _state.layers : _state.interactiveImages;
+        const item = list.find(o => o.id === id);
+        if (!item || (!user.isGM && (!(_state.playerControl && kind === 'char' && item.playerId === user.id) || item.locked))) continue;
+        const allowed = ['x', 'y', 'zIndex', 'scale', '_pinned', '_pinnedWidth'];
+        for (const field of allowed) if (field in props && (field === '_pinned' ? typeof props[field] === 'boolean' : Number.isFinite(props[field]))) item[field] = props[field];
+        DDVNOverlay.moveRemoteElement(kind, item);
+      }
+    }
+    VN3D.renderer?.update(_state);
+    SceneEditor.syncFields();
+  }
+  static edit3D(patch, key, live = false, fromPanel = false) {
+    if (!game.user?.isGM || (!_state.mouseControl && !fromPanel)) return;
+    let normalized;
+    if (key === null) {
+      normalized = scene3D({ ..._state.scene3d, ...patch });
+      _state.scene3d = normalized;
+    } else if (key.startsWith('char:')) {
+      const char = _state.chars.find(c => `char:${c.id}` === key);
+      if (!char) return;
+      // The toolbar lock controls both existing character lock and model lock.
+      if ('locked' in patch) char.locked = patch.locked;
+      char.model3d = model3D({ ...char.model3d, ...patch });
+      normalized = char.model3d;
+      const local = DDVNPanel._instance?._chars.find(c => c.id === char.id);
+      if (local) { local.model3d = deepClone(normalized); local.locked = char.locked; }
+    } else {
+      const obj = _state.scene3d.objects.find(o => `object:${o.id}` === key);
+      if (!obj) return;
+      Object.assign(obj, model3D({ ...obj, ...patch })); normalized = obj;
+    }
+    const fields = Object.fromEntries(Object.keys(patch).map(k => [k, normalized[k]]));
+    DDVNPanel._instance?.element?.querySelector('#vn-3d-editor')?.dispatchEvent(new CustomEvent('vn3d-transform', { detail: { key, patch: fields } }));
+    if (live) {
+      this._motion.push('3d', key, fields);
+      if (fromPanel) VN3D.renderer?.update(_state);
+    }
+    else this.broadcast();
+    SceneEditor.syncFields();
+  }
   static _subTimer = null;
   static _gmOnlyMode = false;
   static _shownToPlayers = false;
@@ -3014,6 +3242,7 @@ export class DDVNManager {
 
   static broadcast(partial = null) {
     if (partial) Object.assign(_state, partial);
+    this._motion.flush();
     if (_dragState.active) return;  // во время drag: только CSS, без emit и apply
 
     // Debounced autosave — fires 1500ms after the last state change
@@ -3032,6 +3261,8 @@ export class DDVNManager {
   }
 
   static applyRemote(state) {
+    state = { ...state, scene3d: scene3D(state.scene3d) };
+    state.chars = (state.chars || []).map(c => ({ ...c, model3d: model3D(c.model3d) }));
     Object.assign(_state, state);
     DDVNOverlay.apply(_state);
   }
@@ -3049,6 +3280,19 @@ export class DDVNManager {
     // Only show locally to GM, don't broadcast to players yet
     DDVNOverlay.apply(_state);
     DDVNPanel._instance?.render();
+  }
+
+  static launchWithMapCharacters() {
+    if (!game.user?.isGM) return;
+    const scene = globalThis.canvas?.scene;
+    const users = game.users?.contents || [...game.users];
+    const tokens = [...(scene?.tokens || [])].filter(t => !t.hidden && t.actor &&
+      (t.actor.hasPlayerOwner || users.some(u => !u.isGM && u.character?.id === (t.actorId || t.actor.id))));
+    if (!tokens.length) { ui.notifications?.warn('На текущей карте нет видимых токенов персонажей игроков.'); return; }
+    if (!_state.open) this.open();
+    _state.chars = charactersFromMap(_state, tokens, users, newChar);
+    if (DDVNPanel._instance) DDVNPanel._instance._chars = deepClone(_state.chars);
+    this.broadcast(); DDVNPanel._instance?.render();
   }
 
   static showToPlayers() {
@@ -3079,7 +3323,6 @@ export class DDVNManager {
     await this._autoSave();
     _state.open = false;
     DDVNMic.stop();
-    DDVNOverlay.clearStage();
     if (bcast) {
       // Всегда отправляем закрытие всем игрокам, независимо от _shownToPlayers
       game.socket.emit(SOCKET, { type: 'vn:state', state: deepClone(_state) });
@@ -3100,7 +3343,6 @@ export class DDVNManager {
     this._gmOnlyMode = false;
     this._shownToPlayers = false;
     DDVNMic.stop();
-    DDVNOverlay.clearStage();
     DDVNOverlay.apply(_state);
     DDVNPanel._instance?.render();
   }
@@ -3161,7 +3403,6 @@ export class DDVNManager {
   static playerCloseLocal() {
     _state.open = false;
     DDVNMic.stop();
-    DDVNOverlay.clearStage();
     DDVNOverlay.apply(_state);
   }
 
@@ -3262,6 +3503,8 @@ export class DDVNManager {
       }
       // During drag: move only this element's DOM node directly, skip full re-render
       if (_dragState.active && _dragState.id === id) {
+        SceneEditor.syncFields();
+        this._motion.push(type, id, { ...props, ...(type === 'char' ? { _pinned: true, _pinnedWidth: item._pinnedWidth } : {}) });
         const el = _dragState.element;
         if (el && type === 'char') {
           if (props.x !== undefined) el.style.left = props.x + 'px';
@@ -3281,7 +3524,7 @@ export class DDVNManager {
         }
         if (el && props.zIndex !== undefined) el.style.zIndex = String(props.zIndex + 1000);
       }
-      this.broadcast();
+      if (!_dragState.active) this.broadcast();
     }
   }
 
@@ -3335,6 +3578,9 @@ export class DDVNManager {
   // Вызывается из GM-бара и из панели. Применяет ВСЕ поля состояния.
   static applySceneState(scene) {
     if (!scene) return;
+    this._motion.clear();
+    // A legacy 2D preset explicitly disables the previous scene's 3D content.
+    _state.scene3d = scene3D(scene.scene3d);
 
     // Фон и оформление
     if (scene.background  !== undefined) _state.background  = scene.background;
@@ -3343,7 +3589,7 @@ export class DDVNManager {
     if (scene.dimBg       !== undefined) _state.dimBg       = scene.dimBg;
 
     // Элементы сцены
-    if (scene.chars)             _state.chars             = deepClone(scene.chars);
+    if (scene.chars) _state.chars = deepClone(scene.chars).map(c => ({ ...c, model3d: model3D(c.model3d) }));
     // Layers/iimgs: AutoSave stores full objects; named presets store transform-only snapshots.
     // Detect by checking if first item has 'src' or 'type' (full) vs only transform fields (snapshot).
     if (scene.layers) {
@@ -3408,6 +3654,7 @@ export class DDVNManager {
     
     if (item) {
       item.locked = !item.locked;
+      if (type === 'char' && item.model3d) item.model3d.locked = item.locked;
       this.broadcast();
       ui.notifications?.info(item.locked 
         ? game.i18n.format('DRAMADIRECTOR.vn.gml.elementLocked', {name: item.name || id})
@@ -3424,6 +3671,7 @@ export class DDVNManager {
     
     if (item) {
       item.locked = locked;
+      if (type === 'char' && item.model3d) item.model3d.locked = item.locked;
       this.broadcast();
     }
   }
@@ -3607,6 +3855,9 @@ export class DDVNPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       bgColor: s.bgColor,
       dimBg: s.dimBg,
       chars: this._chars.map((c, i) => ({ ...c, _idx: i })),
+      actors: (game.actors?.contents || []).map(a => ({ id: a.id, name: a.name })).sort((a, b) => a.name.localeCompare(b.name)),
+      mapTokens: [...(globalThis.canvas?.scene?.tokens || [])].map(t => ({ id: t.uuid, name: `${t.name} (${t.id})` })),
+      spawnpoints: (s.scene3d.objects || []).filter(o => o.kind === 'spawnpoint').map(o => ({ id: o.id, name: o.name || o.id })),
       leftChars: this._chars.filter(c => c.side === 'left').length,
       centerChars: this._chars.filter(c => c.side === 'center').length,
       rightChars: this._chars.filter(c => c.side === 'right').length,
@@ -3632,6 +3883,19 @@ export class DDVNPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   _onRender(ctx, opts) {
     super._onRender?.(ctx, opts);
     const el = this.element;
+    mountSTTSettings(el.querySelector('#vn-stt-settings'), () => DDVNMic.restartSpeech());
+    mount3DEditor(el.querySelector('#vn-3d-editor'), _state, (config, models) => {
+      if (!game.user?.isGM) return;
+      _state.scene3d = config;
+      for (const item of models) {
+        const char = _state.chars.find(c => c.id === item.id);
+        const local = this._chars.find(c => c.id === item.id);
+        if (char) { char.model3d = item.model3d; char.locked = item.model3d.locked; }
+        if (local) { local.model3d = deepClone(item.model3d); local.locked = item.model3d.locked; }
+      }
+      DDVNManager.broadcast();
+      this.render(); // Refresh actor spawnpoint choices after adding/removing spawn markers.
+    }, (patch, key, live) => DDVNManager.edit3D(patch, key, live, true));
 
     // Force launch button color — Foundry core CSS overrides inline styles and !important
     // so we apply via JS after all framework initialization is done.
@@ -3688,6 +3952,7 @@ export class DDVNPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     el.querySelector('[data-action="vn-open"]')?.addEventListener('click', () => {
       DDVNManager.open(); this.render();
     });
+    el.querySelector('[data-action="vn-open-map"]')?.addEventListener('click', () => DDVNManager.launchWithMapCharacters());
     el.querySelector('[data-action="vn-open-local"]')?.addEventListener('click', () => {
       DDVNManager.openLocal(); this.render();
     });
@@ -4117,7 +4382,7 @@ export class DDVNPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     el.querySelector('[data-action="vn-layers-macro"]')?.addEventListener('click', () => {
       const code = `// Apply VN layers
 const layers = ${JSON.stringify(this._layers, null, 2)};
-game.dramaDirector.vn.setLayers(layers);`;
+game.modules.get('drama-director-novella').api.setLayers(layers);`;
       const wrap = el.querySelector('#vn-layers-macro-wrap');
       if (wrap) { wrap.style.display = ''; wrap.querySelector('.vn-macro-example').textContent = code; }
     });
@@ -4201,7 +4466,7 @@ game.dramaDirector.vn.setLayers(layers);`;
     el.querySelector('[data-action="vn-iimg-macro"]')?.addEventListener('click', () => {
       const code = `// Apply VN interactive images
 const images = ${JSON.stringify(this._interactiveImages, null, 2)};
-game.dramaDirector.vn.setInteractiveImages(images);`;
+game.modules.get('drama-director-novella').api.setInteractiveImages(images);`;
       const wrap = el.querySelector('#vn-iimg-macro-wrap');
       if (wrap) { wrap.style.display = ''; wrap.querySelector('.vn-macro-example').textContent = code; }
     });
@@ -4606,6 +4871,10 @@ game.dramaDirector.vn.setInteractiveImages(images);`;
       });
     }
     c.locked = insp.querySelector('.vn-char-locked')?.checked ?? false;
+    c.actorId = insp.querySelector('.vn-char-actor')?.value || '';
+    c.tokenUuid = insp.querySelector('.vn-char-token')?.value || '';
+    c.spawnpointId = insp.querySelector('.vn-char-spawnpoint')?.value || '';
+    if (c.model3d) c.model3d.locked = c.locked;
 
     // Interactive fields
     c.macroId = insp.querySelector('.vn-char-macro-sel')?.value ?? c.macroId ?? '';
@@ -4660,6 +4929,7 @@ game.dramaDirector.vn.setInteractiveImages(images);`;
       });
     }
     c.locked = row.querySelector('.vn-char-locked')?.checked ?? false;
+    if (c.model3d) c.model3d.locked = c.locked;
     // В режиме глубины scale пересчитывается из baseScale + Y; иначе scale = baseScale
     if (_state.depthMode) {
       c.scale  = parseFloat((c.baseScale * DDVNOverlay._perspectiveFactor(DDVNOverlay._depthY('char', c))).toFixed(3));
@@ -5127,6 +5397,24 @@ game.dramaDirector.vn.setInteractiveImages(images);`;
 // API
 // ─────────────────────────────────────────────────────────────────────────────
 export class DDVNApi {
+  static launchWithMapCharacters() { DDVNManager.launchWithMapCharacters(); }
+  static setScene3D(config) {
+    if (!game.user?.isGM) return;
+    _state.scene3d = scene3D(config);
+    DDVNManager.broadcast();
+    DDVNPanel._instance?.render();
+  }
+  static setCharacter3D(id, config) {
+    if (!game.user?.isGM) return;
+    const char = _state.chars.find(c => c.id === id);
+    if (!char) throw new Error(`Unknown character: ${id}`);
+    char.model3d = model3D(config);
+    char.locked = char.model3d.locked;
+    const local = DDVNPanel._instance?._chars.find(c => c.id === id);
+    if (local) { local.model3d = deepClone(char.model3d); local.locked = char.locked; }
+    DDVNManager.broadcast();
+    DDVNPanel._instance?.render();
+  }
   static open() { DDVNManager.open(); }
   static openLocal() { DDVNManager.openLocal(); }
   static showToPlayers() { DDVNManager.showToPlayers(); }
@@ -5140,6 +5428,7 @@ export class DDVNApi {
   static activateExclusive(id) { DDVNManager.activateExclusive(id); }
   static deactivateAll() { DDVNManager.deactivateAll(); }
   static openPanel() {
+    if (!game.user?.isGM) return;
     if (DDVNPanel._instance) {
       DDVNPanel._instance.render({force: true});
     } else {
@@ -5195,7 +5484,7 @@ export class DDVNApi {
       ui.notifications?.warn(game.i18n.format('DRAMADIRECTOR.notifications.layerPresetNotFound', { name }));
       return;
     }
-    _state.layers = deepClone(layers);
+    _state.layers = layers.some(l => 'src' in l || 'text' in l) ? deepClone(layers) : DDVNPresets.applyTransformSnapshot(_state.layers, layers);
     if (DDVNPanel._instance) {
       DDVNPanel._instance._layers = deepClone(_state.layers);
       DDVNPanel._instance.render();
@@ -5211,7 +5500,7 @@ export class DDVNApi {
       ui.notifications?.warn(game.i18n.format('DRAMADIRECTOR.notifications.iimgPresetNotFound', { name }));
       return;
     }
-    _state.interactiveImages = deepClone(iimgs);
+    _state.interactiveImages = iimgs.some(i => 'src' in i) ? deepClone(iimgs) : DDVNPresets.applyTransformSnapshot(_state.interactiveImages, iimgs);
     if (DDVNPanel._instance) {
       DDVNPanel._instance._interactiveImages = deepClone(_state.interactiveImages);
       DDVNPanel._instance.render();
@@ -6164,6 +6453,8 @@ export function isVNOpen() { return !!_state.open; }
 // INIT
 // ─────────────────────────────────────────────────────────────────────────────
 export function initVNSystem() {
+  if (initVNSystem.initialized) return;
+  initVNSystem.initialized = true;
   DDVNPresets.register();
   DDVNEmotionManager.init();
 
@@ -6183,16 +6474,15 @@ export function initVNSystem() {
   globalThis.isVNOpen = isVNOpen;
 
   game.socket.on(SOCKET, (data) => {
+    if (!data || typeof data !== 'object') return;
     if (data.type === 'vn:state') {
       if (DDVNManager.isGmOnlyMode() && !game.user?.isGM) return;
       DDVNManager.applyRemote(data.state);
+    } else if (data.type === 'vn:motion') {
+      DDVNManager.receiveMotion(data);
     } else if (data.type === 'vn:subtitle') {
       DDVNOverlay.showSubtitle(data.name, data.text, data.color, data.charId, data.isFinal !== false);
-    } else if (data.type === 'vn:execMacro' && game.user?.isGM) {
-      // A player with Observer-only permissions asked GM to execute a macro
-      const macro = game.macros?.get(data.macroId) ?? game.macros?.getName(data.macroId);
-      if (macro) macro.execute();
-      else ui.notifications?.warn(`Drama Director: Макрос не найден (${data.macroId})`);
+
     }
   });
 

@@ -4,7 +4,12 @@
       "label": "Roman visuel",
       "hint": "Mode roman visuel",
       "desc": "Personnages, décors, dialogues, émotions, micro."
-    }
+    },
+    "keys": {
+      "emotionWheel": "Emotion wheel",
+      "microphone": "Toggle microphone"
+    },
+    "macroDenied": "Macro unavailable: check the current user’s permissions."
   },
   "DRAMADIRECTOR": {
     "vn": {
@@ -349,7 +354,33 @@
       "helpTabBasics": "Bases",
       "helpTabControls": "Contrôles",
       "helpTabFeatures": "Fonctionnalités",
-      "helpTabMacros": "Macros"
+      "helpTabMacros": "Macros",
+      "chatPlaceholder": "Type a line and press Enter…",
+      "chatClear": "Clear chat",
+      "chatExpand": "Expand / collapse chat",
+      "tagLabel": "Tags",
+      "tagPlaceholder": "tag + Enter",
+      "charMacroLabel": "Click macro",
+      "animLabel": "Show animation",
+      "animHideLabel": "Hide animation",
+      "animNone": "None",
+      "animFade": "Fade",
+      "animSlideUp": "Slide up",
+      "animSlideDown": "Slide down",
+      "animSlideLeft": "Slide left",
+      "animSlideRight": "Slide right",
+      "animZoomIn": "Zoom in",
+      "animZoomOut": "Zoom out",
+      "animBlur": "Blur",
+      "animRise": "Rise",
+      "animDrop": "Drop",
+      "animSpin": "Spin",
+      "animFlip": "Flip X",
+      "animFlipY": "Flip Y",
+      "animSwipeLeft": "Swipe left",
+      "animSwipeRight": "Swipe right",
+      "openAnim": "VN open animation",
+      "closeAnim": "VN close animation"
     },
     "notifications": {
       "noToken": "Sélectionnez un token sur la carte !",
@@ -379,6 +410,35 @@
       "noChars": "Aucun personnage",
       "emotionMacroNotFound": "Macro d'émotion introuvable",
       "sceneSaved": "Scène «{name}» sauvegardée"
-    }
+    },
+    "clearAllInteractive": "Remove all objects",
+    "loadPreset": "Load preset",
+    "interactiveName": "Name",
+    "presetLoad": "Load",
+    "generateMacro": "Generate macro",
+    "noMacro": "No macro",
+    "textAlign": "Text alignment",
+    "alignRight": "Right",
+    "fontSize": "Font size",
+    "presetDelete": "Delete",
+    "addInteractive": "Add interactive image",
+    "alignLeft": "Left",
+    "layerMoveDown": "Move down",
+    "layerVisible": "Visibility",
+    "layerName": "Layer name",
+    "noInteractiveImages": "No interactive images yet",
+    "alignCenter": "Center",
+    "layerRemove": "Remove layer",
+    "imageLayer": "Image",
+    "clearAll": "Clear all",
+    "noLayers": "No layers yet",
+    "textLayer": "Text",
+    "layerMoveUp": "Move up",
+    "interactiveMacro": "Macro",
+    "presetSave": "Save",
+    "interactiveHint": "Assign an image and macro. Macros use the current user’s permissions.",
+    "presetName": "Preset name",
+    "interactiveImages": "Interactive images",
+    "layerImage": "Image path"
   }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "drama-director-novella",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:3d": "esbuild scripts/three-entry.mjs --bundle --minify --format=esm --outfile=scripts/vendor/three-vn.mjs --legal-comments=eof",
+    "build:whisper": "node scripts/build-whisper.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "three": "0.186.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.28.2"
+  }
+}
